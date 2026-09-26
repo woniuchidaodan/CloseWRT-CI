@@ -129,13 +129,11 @@ jobs:
           echo "WRT_CACHE_KEY=$WRT_CACHE_PREFIX-$WRT_HASH" >> $GITHUB_ENV
           echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
 
-          # 如果不存在 defconfig 则直接结束工作流
           if [ ! -d "defconfig" ]; then
             echo "defconfig directory not found, stopping workflow."
             exit 0
           fi
 
-          # GitHub Action 移除国内下载源
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
             sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
@@ -237,30 +235,24 @@ jobs:
           echo "==== 固件列表（原始） ===="
           ls -lh bin/targets/mediatek/filogic/ 2>/dev/null || echo "固件目录未找到"
 
-      - name: 打包固件（保留原始文件名 + 只保留选中机型）
+      - name: 打包固件
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
           # 导出编译配置
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"${WRT_DEVICE:-ALL}"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
 
           # 提取内核版本和插件列表
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 删除不需要的辅助文件
-          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.sha256sums" \) -delete
+          # 删除辅助文件
+          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.json" -o -name "*.sha256sums" \) -delete
           find ./bin/targets/ -type d -name "packages" -exec rm -rf {} + 2>/dev/null || true
 
-          # 把所有固件移到 upload/
+          # 保留原始文件名，直接移动
           find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
-
-          # 如果指定了 WRT_DEVICE，只保留该机型的固件
-          if [ -n "$WRT_DEVICE" ]; then
-            echo "===== 只保留机型: $WRT_DEVICE ====="
-            find ./upload/ -type f ! -iname "*${WRT_DEVICE}*" ! -iname "*Packages.manifest" ! -iname "*profiles.json" ! -iname "mt7981*" ! -iname "mt7986*" ! -iname "mt7988*" ! -iname "Config-*" -delete
-          fi
 
           make clean -j$(nproc)
 

@@ -136,18 +136,24 @@ if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
 fi
 
 # ========== 拉取第三方包 ==========
-cd $GITHUB_WORKSPACE/wrt/package/ 2>/dev/null || cd package/
+echo "===== 开始拉取第三方包 ====="
+# 注意：WRT-CORE 已经把当前目录切换到 package/，这里不要再 cd
 
 # UA3F
+echo "===== 拉取 UA3F ====="
 git clone --depth 1 https://github.com/SunBK201/UA3F.git UA3F 2>/dev/null || true
 
 # OpenAppFilter (OAF)
+echo "===== 拉取 OpenAppFilter ====="
+rm -rf open-app-filter oaf luci-app-oaf appfilter 2>/dev/null || true
 git clone --depth 1 https://github.com/destan19/OpenAppFilter.git OpenAppFilter 2>/dev/null || true
 
 # rkp-ipid
+echo "===== 拉取 rkp-ipid ====="
 git clone --depth 1 https://github.com/CHN-beta/rkp-ipid.git rkp-ipid 2>/dev/null || true
 
 # quickstart 全家桶
+echo "===== 拉取 quickstart 全家桶 ====="
 git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/small-package.git temp_kenzok8
 cd temp_kenzok8
 git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
@@ -160,8 +166,15 @@ mv temp_kenzok8/luci-lib-xterm ./ 2>/dev/null || true
 mv temp_kenzok8/taskd ./ 2>/dev/null || true
 rm -rf temp_kenzok8
 
-# Argon 主题
-git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git luci-theme-argon 2>/dev/null || true
-git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git luci-app-argon-config 2>/dev/null || true
+# ========== 清理 quickstart 多余依赖 ==========
+echo "===== 清理 quickstart 依赖 ====="
+for file in $(find . -path "*quickstart*" -name "Makefile" 2>/dev/null); do
+  cp "$file" "$file.bak"
+  sed -i -E 's/\+shadow[a-z0-9-]*\b//g' "$file"
+  sed -i -E 's/\+smartmontools[a-z0-9-]*\b//g' "$file"
+  sed -i -E 's/\+smartd\b//g' "$file"
+  sed -i -E 's/\+mdadm\b//g' "$file"
+done
+echo "✅ quickstart 依赖清理完成"
 
 echo "===== 第三方包拉取完成 ====="

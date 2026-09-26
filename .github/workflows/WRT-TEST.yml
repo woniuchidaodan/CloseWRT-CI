@@ -52,18 +52,17 @@ jobs:
     # 调用公用编译核心 WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
     with:
-      # 编译配置
+      # 编译配置（决定读取 Config/$WRT_CONFIG.txt）
       WRT_CONFIG: ${{inputs.CONFIG}}
       # 默认主题
       WRT_THEME: aurora
-      # 默认主机名
-      WRT_NAME: CWRT
-      # 默认WIFI名称
-      WRT_SSID: CWRT
-      # 默认WIFI密码
-      WRT_WORD: 12345678
-      # 默认地址
-      WRT_IP: 192.168.10.1
+      # ========== 以下 4 项会被 Settings.sh 根据 WRT_CONFIG 动态覆盖 ==========
+      # 这里填的值只是保底，实际生效的是 Settings.sh 里的 case 分支
+      WRT_NAME: WR30U
+      WRT_SSID: CMCC-7920
+      WRT_WORD: 123456789
+      WRT_IP: 192.168.1.2
+      # ========== ========== ========== ==========
       # 默认密码，仅作提示，修改无用
       WRT_PW: 无
       # 源码链接

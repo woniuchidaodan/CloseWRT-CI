@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
-name: Cache-Clean
+name: 缓存清理
 
 on:
-  #自动清理：每周一早上4点
+  # 自动清理：每周一早上4点
   schedule:
     - cron: 0 20 * * 0
-  #手动清理
+  # 手动清理
   workflow_dispatch:
 
 permissions: write-all
@@ -19,8 +19,8 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Projects
+      - name: 检出项目
         uses: actions/checkout@main
 
-      - name: Cache Clean
+      - name: 清理缓存
         run: gh cache delete --all

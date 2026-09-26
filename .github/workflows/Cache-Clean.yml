@@ -22,5 +22,5 @@ jobs:
       - name: 检出项目
         uses: actions/checkout@main
 
-      - name: 清理缓存
+      - name: 清理所有缓存
         run: gh cache delete --all

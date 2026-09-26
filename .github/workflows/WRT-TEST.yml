@@ -64,7 +64,7 @@ jobs:
     with:
       # 编译配置
       WRT_CONFIG: ${{inputs.CONFIG}}
-      # 目标机型
+      # 目标机型（用于 Settings.sh 禁用其他机型）
       WRT_DEVICE: ${{inputs.DEVICE}}
       # 默认主题
       WRT_THEME: aurora

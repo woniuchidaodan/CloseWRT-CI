@@ -46,3 +46,12 @@ fi
 if [[ "${WRT_CONFIG,,}" == *"wifi"* && "${WRT_CONFIG,,}" == *"no"* ]]; then
 	echo "WRT_WIFI=wifi-no" >> $GITHUB_ENV
 fi
+
+
+# ========== 修改版本号 ==========
+echo "===== 修改版本号为 24.10.6 r33869-cf234f8de6d5 ====="
+sed -i 's/24.10-SNAPSHOT/24.10.6/g' include/version.mk
+sed -i 's/\$(REVISION)/r33869-cf234f8de6d5/g' include/version.mk
+
+# 确认修改成功
+grep -E "VERSION_NUMBER|VERSION_CODE" include/version.mk | head -5

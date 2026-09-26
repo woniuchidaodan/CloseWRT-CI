@@ -26,6 +26,7 @@ on:
         options:
          - Yuzhii0718/immortalwrt-mt798x-6.6-padavanonly
          - chasey-dev/immortalwrt-mt798x-rebase
+         - padavanonly/immortalwrt-mt798x-6.6   # <-- 新增这一行
       BRANCH:
         description: '源码分支'
         default: 'openwrt-24.10-6.6'

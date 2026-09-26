@@ -2,13 +2,16 @@
 # Copyright (C) 2026 VIKINGYFY
 
 # 云编译公用核心
-name: WRT-核心
+name: WRT-CORE
 
 on:
   workflow_call:
     inputs:
       WRT_CONFIG:
         required: true
+        type: string
+      WRT_DEVICE:
+        required: false
         type: string
       WRT_THEME:
         required: true
@@ -48,6 +51,7 @@ on:
 env:
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   WRT_CONFIG: ${{inputs.WRT_CONFIG}}
+  WRT_DEVICE: ${{inputs.WRT_DEVICE}}
   WRT_THEME: ${{inputs.WRT_THEME}}
   WRT_NAME: ${{inputs.WRT_NAME}}
   WRT_SSID: ${{inputs.WRT_SSID}}
@@ -68,10 +72,10 @@ jobs:
       cache_prefix: ${{steps.initialize-values.outputs.cache_prefix}}
       cache_key: ${{steps.clone-code.outputs.cache_key}}
     steps:
-      - name: 检出项目
+      - name: Checkout Projects
         uses: actions/checkout@main
 
-      - name: 初始化环境
+      - name: Initialization Environment
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -90,7 +94,7 @@ jobs:
           sudo chown $USER:$USER /mnt/build_wrt
           sudo ln -s /mnt/build_wrt $GITHUB_WORKSPACE/wrt
 
-      - name: 初始化变量
+      - name: Initialization Values
         id: initialize-values
         run: |
           WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' "./Config/$WRT_CONFIG.txt")
@@ -114,7 +118,7 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
 
-      - name: 克隆源码
+      - name: Clone Code
         id: clone-code
         run: |
           git clone --depth=1 --single-branch --branch $WRT_BRANCH $WRT_REPO ./wrt/
@@ -125,23 +129,21 @@ jobs:
           echo "WRT_CACHE_KEY=$WRT_CACHE_PREFIX-$WRT_HASH" >> $GITHUB_ENV
           echo "cache_key=$WRT_CACHE_PREFIX-$WRT_HASH" >> "$GITHUB_OUTPUT"
 
-          # 如果不存在 defconfig 则直接结束工作流
           if [ ! -d "defconfig" ]; then
             echo "defconfig directory not found, stopping workflow."
             exit 0
           fi
 
-          # GitHub Action 移除国内下载源
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
             sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
           fi
 
-      - name: 检查脚本
+      - name: Check Scripts
         run: |
           find ./ -maxdepth 3 -type f -iregex ".*\(txt\|sh\)$" -exec dos2unix {} \; -exec chmod +x {} \;
 
-      - name: 恢复编译缓存
+      - name: Restore Build Cache
         id: cache-restore
         if: ${{ !inputs.WRT_TEST }}
         uses: actions/cache/restore@main
@@ -153,7 +155,7 @@ jobs:
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
 
-      - name: 准备恢复的编译缓存
+      - name: Prepare Restored Build Cache
         if: ${{ !inputs.WRT_TEST && steps.cache-restore.outputs.cache-matched-key != '' }}
         run: |
           find "./wrt/staging_dir" -type d -name "stamp" -not -path "*target*" | while read -r DIR; do
@@ -163,21 +165,19 @@ jobs:
           echo "1" > ./wrt/tmp/.build
           echo "restored build cache: ${{steps.cache-restore.outputs.cache-matched-key}}"
 
-      - name: 更新 feeds
+      - name: Update Feeds
         run: |
           cd ./wrt/
-
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 自定义软件包
+      - name: Custom Packages
         run: |
           cd ./wrt/package/
-
           $GITHUB_WORKSPACE/Scripts/Packages.sh
           $GITHUB_WORKSPACE/Scripts/Handles.sh
 
-      - name: 自定义设置
+      - name: Custom Settings
         run: |
           cd ./wrt/
 
@@ -191,21 +191,19 @@ jobs:
 
           make defconfig -j$(nproc) && make clean -j$(nproc)
 
-      - name: 下载源码包
+      - name: Download Packages
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/
-
           make download -j$(nproc)
 
-      - name: 编译固件
+      - name: Compile Firmware
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/
-
           make -j$(nproc) || make -j1 V=s
 
-      - name: 保存编译缓存
+      - name: Save Build Cache
         if: ${{ !inputs.WRT_TEST && success() && steps.cache-restore.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@main
         with:
@@ -215,10 +213,9 @@ jobs:
             ./wrt/staging_dir/host*
             ./wrt/staging_dir/tool*
 
-      - name: 机器信息
+      - name: Machine Information
         run: |
           cd ./wrt/
-
           echo "======================="
           lscpu | grep -E "name|Core|Thread"
           echo "======================="
@@ -227,41 +224,58 @@ jobs:
           du -h --max-depth=1
           echo "======================="
 
-      - name: 打包固件
+      - name: 编译后版本校验
+        if: ${{ !inputs.WRT_TEST }}
+        working-directory: ./wrt
         run: |
-          cd ./wrt/ && mkdir ./upload/
+          echo "==== profiles.json version ===="
+          cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
+          echo "==== openwrt_release ===="
+          cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
+          echo "==== 固件列表（原始） ===="
+          ls -lh bin/targets/mediatek/filogic/ 2>/dev/null || echo "固件目录未找到"
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+      - name: 打包固件（保留原始文件名 + 只保留选中机型）
+        if: ${{ !inputs.WRT_TEST }}
+        run: |
+          cd ./wrt/ && mkdir -p ./upload/
 
-          if [[ "$WRT_TEST" != 'true' ]]; then
-            echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
-            echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
+          # 导出编译配置
+          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"${WRT_DEVICE:-ALL}"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
 
-            find ./bin/targets/ -iregex ".*\(buildinfo\|json\|sha256sums\|packages\)$" -exec rm -rf {} +
+          # 提取内核版本和插件列表
+          echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
+          echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-            for FILE in $(find ./bin/targets/ -type f -iname "*$WRT_TARGET*") ; do
-              EXT=$(basename $FILE | cut -d '.' -f 2-)
-              NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
-              NEW_FILE="$NAME"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_WIFI"-"$WRT_DATE"."$EXT"
-              mv -f $FILE ./upload/$NEW_FILE
-            done
+          # 删除不需要的辅助文件
+          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.sha256sums" \) -delete
+          find ./bin/targets/ -type d -name "packages" -exec rm -rf {} + 2>/dev/null || true
 
-            find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+          # 把所有固件移到 upload/
+          find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
 
-            make clean -j$(nproc)
+          # 如果指定了 WRT_DEVICE，只保留该机型的固件
+          if [ -n "$WRT_DEVICE" ]; then
+            echo "===== 只保留机型: $WRT_DEVICE ====="
+            find ./upload/ -type f ! -iname "*${WRT_DEVICE}*" ! -iname "*Packages.manifest" ! -iname "*profiles.json" ! -iname "mt7981*" ! -iname "mt7986*" ! -iname "mt7988*" ! -iname "Config-*" -delete
           fi
+
+          make clean -j$(nproc)
+
+          echo "==== upload 目录内容 ===="
+          ls -lh ./upload/
 
       - name: 发布固件
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ${{env.WRT_CONFIG}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
+          tag_name: ${{env.WRT_CONFIG}}-${{
+            inputs.WRT_DEVICE && format('{0}-', inputs.WRT_DEVICE) || ''
+          }}${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
           files: ./wrt/upload/*.*
           body: |
-            这是个平台固件包，内含多个设备！
-            请注意选择你需要的设备固件！
-            不要问，刷就完事了！
+            这是一个平台固件包
 
-            全系带闭源硬件加速，别问了！
+            **编译机型**：${{ inputs.WRT_DEVICE || '全设备' }}
 
             源码：${{env.WRT_REPO}}
             分支：${{env.WRT_BRANCH}}
@@ -280,7 +294,7 @@ jobs:
             插件列表：${{env.WRT_LIST}}
 
   cache-rollover:
-    name: 滚动缓存世代
+    name: Roll cache generations
     needs: core
     if: ${{ !inputs.WRT_TEST && needs.core.result == 'success' }}
     runs-on: ubuntu-latest
@@ -293,10 +307,9 @@ jobs:
       WRT_CACHE_PREFIX: ${{needs.core.outputs.cache_prefix}}
       WRT_CACHE_KEY: ${{needs.core.outputs.cache_key}}
     steps:
-      - name: 滚动编译缓存
+      - name: Roll Build Cache
         run: |
           set -euo pipefail
-
           CURRENT_CACHE_KEYS=$(gh cache list --repo "$GH_REPO" --key "$WRT_CACHE_KEY" --ref "$GITHUB_REF" --limit 100 --json key --jq '.[].key')
           CURRENT_CACHE_FOUND=0
           while IFS= read -r CACHE_KEY; do

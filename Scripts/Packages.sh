@@ -134,3 +134,34 @@ UPDATE_VERSION() {
 if [ -f "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh" ]; then
 	source "$GITHUB_WORKSPACE/Scripts/PRIVATE.sh"
 fi
+
+# ========== 拉取第三方包 ==========
+cd $GITHUB_WORKSPACE/wrt/package/ 2>/dev/null || cd package/
+
+# UA3F
+git clone --depth 1 https://github.com/SunBK201/UA3F.git UA3F 2>/dev/null || true
+
+# OpenAppFilter (OAF)
+git clone --depth 1 https://github.com/destan19/OpenAppFilter.git OpenAppFilter 2>/dev/null || true
+
+# rkp-ipid
+git clone --depth 1 https://github.com/CHN-beta/rkp-ipid.git rkp-ipid 2>/dev/null || true
+
+# quickstart 全家桶
+git clone --depth 1 --filter=blob:none --sparse https://github.com/kenzok8/small-package.git temp_kenzok8
+cd temp_kenzok8
+git sparse-checkout set quickstart luci-app-quickstart luci-app-store luci-lib-taskd luci-lib-xterm taskd
+cd ..
+mv temp_kenzok8/quickstart ./ 2>/dev/null || true
+mv temp_kenzok8/luci-app-quickstart ./ 2>/dev/null || true
+mv temp_kenzok8/luci-app-store ./ 2>/dev/null || true
+mv temp_kenzok8/luci-lib-taskd ./ 2>/dev/null || true
+mv temp_kenzok8/luci-lib-xterm ./ 2>/dev/null || true
+mv temp_kenzok8/taskd ./ 2>/dev/null || true
+rm -rf temp_kenzok8
+
+# Argon 主题
+git clone --depth 1 https://github.com/jerrykuku/luci-theme-argon.git luci-theme-argon 2>/dev/null || true
+git clone --depth 1 https://github.com/jerrykuku/luci-app-argon-config.git luci-app-argon-config 2>/dev/null || true
+
+echo "===== 第三方包拉取完成 ====="

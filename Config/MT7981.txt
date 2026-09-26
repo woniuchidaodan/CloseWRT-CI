@@ -16,3 +16,17 @@ CONFIG_MTK_FIRST_IF_MT7981=y
 CONFIG_MTK_MT7981_NEW_FW=n
 CONFIG_WARP_CHIPSET="mt7981"
 CONFIG_WARP_NEW_FW=n
+
+CONFIG_PACKAGE_ua3f=y
+CONFIG_PACKAGE_luci-app-oaf=y
+CONFIG_PACKAGE_open-app-filter=y
+CONFIG_PACKAGE_kmod-oaf=y
+CONFIG_PACKAGE_kmod-rkp-ipid=y
+CONFIG_PACKAGE_quickstart=y
+CONFIG_PACKAGE_luci-app-quickstart=y
+CONFIG_PACKAGE_luci-app-store=y
+CONFIG_PACKAGE_luci-lib-taskd=y
+CONFIG_PACKAGE_luci-lib-xterm=y
+CONFIG_PACKAGE_taskd=y
+CONFIG_PACKAGE_luci-theme-argon=y
+CONFIG_PACKAGE_luci-app-argon-config=y

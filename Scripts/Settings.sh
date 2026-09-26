@@ -2,6 +2,24 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
+# ========== 根据 WRT_DEVICE 禁用其他机型 ==========
+if [ -n "$WRT_DEVICE" ]; then
+  echo "===== 只编译机型: $WRT_DEVICE ====="
+
+  # 1. 先把所有机型的 DEVICE 和 PACKAGES 行注释掉
+  sed -i 's/^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/' .config
+  sed -i 's/^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_/# CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_/' .config
+
+  # 2. 再启用选中的机型
+  sed -i "s/^# \(CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_${WRT_DEVICE}=y\)/\1/" .config
+  sed -i "s/^# \(CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_${WRT_DEVICE}=\)/\1/" .config
+
+  # 3. 确认结果
+  echo "===== 当前生效的机型 ====="
+  grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config
+fi
+
+
 # ========== 统一的 WiFi 和 IP（所有机型共用） ==========
 WRT_SSID="CMCC-7920"
 WRT_WORD="123456789"

@@ -268,9 +268,7 @@ jobs:
       - name: 发布固件
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ${{env.WRT_CONFIG}}-${{
-            inputs.WRT_DEVICE && format('{0}-', inputs.WRT_DEVICE) || ''
-          }}${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
+          tag_name: ${{env.WRT_CONFIG}}-${{inputs.WRT_DEVICE || 'ALL'}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
           files: ./wrt/upload/*.*
           body: |
             这是一个平台固件包

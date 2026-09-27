@@ -178,3 +178,23 @@ done
 echo "✅ quickstart 依赖清理完成"
 
 echo "===== 第三方包拉取完成 ====="
+
+# ========== 拉取 minieap 校园网认证 ==========
+echo "===== 拉取 minieap 与 LuCI 界面 ====="
+
+# minieap 后端（BoringCat 打包了 updateing/minieap 的源码 + OpenWrt Makefile）
+rm -rf minieap luci-app-minieap 2>/dev/null || true
+git clone --depth 1 https://github.com/BoringCat/minieap-openwrt.git minieap 2>/dev/null || true
+
+# LuCI 界面
+git clone --depth 1 https://github.com/BoringCat/luci-app-minieap.git luci-app-minieap 2>/dev/null || true
+
+# 兜底：如果 minieap-openwrt 拉取失败，用 updateing 原版 + 手动 Makefile
+if [ ! -d "minieap" ] || [ ! -f "minieap/Makefile" ]; then
+  echo "⚠️ BoringCat/minieap-openwrt 拉取失败，尝试使用 updateing 原版"
+  rm -rf minieap
+  git clone --depth 1 https://github.com/updateing/minieap.git minieap 2>/dev/null || true
+  # 注意：原版无 Makefile，需要自行补充，否则编译会跳过
+fi
+
+echo "===== minieap 拉取完成 ====="

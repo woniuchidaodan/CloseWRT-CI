@@ -142,41 +142,18 @@ jobs:
             exit 0
           fi
 
+          # 检查源码自带的 dl 目录（237 大佬仓库已包含）
+          if [ -d "dl" ]; then
+            echo "===== 源码自带 dl 目录，包含以下文件 ====="
+            ls -lh dl/ | head -20
+          else
+            echo "⚠️ 警告：未找到 dl 目录，将依赖 make download 自动下载"
+          fi
+
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
             sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
           fi
-
-      # ========== 新增：修复 conninfra 编译错误 ==========
-      - name: 修复 conninfra 编译错误（拉取配套 dl 包）
-        run: |
-          cd ./wrt/
-          echo "===== 从 lgs2007m 仓库拉取配套的 dl 包 ====="
-          mkdir -p dl
-
-          # lgs2007m 的 v7672 分支与 padavanonly/immortalwrt-mt798x-6.6 的驱动版本配套
-          # 该分支的 conninfra、datconf、warp 与 mt_wifi v7.6.7.2 配套
-          DL_BASE="https://github.com/lgs2007m/immortalwrt-mt798x/raw/v7672/dl"
-
-          # 下载 conninfra 源码包
-          wget -q --show-progress -O dl/conninfra.tar.gz "$DL_BASE/conninfra.tar.gz" || \
-          echo "⚠️ conninfra 包下载失败，请手动检查 dl 目录"
-
-          # 下载 mt_wifi 驱动包
-          wget -q --show-progress -O dl/mt_wifi.tar.gz "$DL_BASE/mt_wifi.tar.gz" || \
-          echo "⚠️ mt_wifi 包下载失败，请手动检查 dl 目录"
-
-          # 下载 warp 加速引擎包
-          wget -q --show-progress -O dl/warp.tar.gz "$DL_BASE/warp.tar.gz" || \
-          echo "⚠️ warp 包下载失败，请手动检查 dl 目录"
-
-          # 下载 datconf 配置工具包
-          wget -q --show-progress -O dl/datconf.tar.gz "$DL_BASE/datconf.tar.gz" || \
-          echo "⚠️ datconf 包下载失败，请手动检查 dl 目录"
-
-          echo "===== dl 目录内容 ====="
-          ls -lh dl/ | grep -E "conninfra|mt_wifi|warp|datconf" || echo "未找到相关文件，请检查下载是否成功"
-      # ====================================================
 
       - name: 检查脚本
         run: |

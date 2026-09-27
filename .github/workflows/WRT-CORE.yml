@@ -181,23 +181,25 @@ jobs:
         run: |
           cd ./wrt/
 
-          # 删除源码自带的 .config，避免源码自带设备被保留
+          # ========== 1. 删除源码自带的 .config ==========
           rm -f .config
 
+          # ========== 2. 拼接我们的配置 ==========
           if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
           fi
 
+          # ========== 3. 执行 Settings.sh ==========
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          # 用 olddefconfig，不重扫多设备
-          yes "" | make olddefconfig -j$(nproc)
+          # ========== 4. 用 defconfig（容忍递归依赖） ==========
+          make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log
 
-          # olddefconfig 后再次过滤设备
+          # ========== 5. defconfig 后再 awk 过滤设备 ==========
           if [ -n "$WRT_DEVICE" ]; then
-            echo "===== olddefconfig 后再次过滤设备: $WRT_DEVICE ====="
+            echo "===== defconfig 后过滤设备: $WRT_DEVICE ====="
             awk -v device="$WRT_DEVICE" '
               /^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/ {
                 if ($0 ~ "DEVICE_" device "=y") print $0;
@@ -211,8 +213,19 @@ jobs:
             ' .config > .config.new
             mv .config.new .config
 
+            # ========== 6. 强制写死 MULTI_PROFILE 和 PER_DEVICE_ROOTFS ==========
+            sed -i '/^CONFIG_TARGET_MULTI_PROFILE=/d' .config
+            sed -i '/^CONFIG_TARGET_PER_DEVICE_ROOTFS=/d' .config
+            echo "CONFIG_TARGET_MULTI_PROFILE=y" >> .config
+            echo "CONFIG_TARGET_PER_DEVICE_ROOTFS=y" >> .config
+
             echo "===== 当前生效的设备 ====="
             grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config
+
+            if [ -z "$(grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config)" ]; then
+              echo "❌ 错误：没有匹配到任何设备，请检查 WRT_DEVICE 的值！"
+              exit 1
+            fi
           fi
 
           make clean -j$(nproc)

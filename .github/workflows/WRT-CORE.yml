@@ -142,16 +142,33 @@ jobs:
             exit 0
           fi
 
-          # 仅当源码为 237 的仓库时，展示其自带的 dl 目录
+          # 仅当源码为 237 仓库时，补充下载缺失的 dl 包
           if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
-            if [ -d "dl" ]; then
-              echo "===== 237 源码自带 dl 目录，包含以下文件 ====="
-              ls -lh dl/
-            else
-              echo "⚠️ 警告：未找到 dl 目录"
-            fi
+            echo "===== 237 源码，检查并补充缺失的 dl 包 ====="
+            mkdir -p dl
+            DL_BASE="https://github.com/lgs2007m/immortalwrt-mt798x/raw/v7672/dl"
+
+            # 使用 -nc 避免覆盖源码已有的文件，只补充缺失的包
+            wget -q -nc -O dl/conninfra.tar.gz "$DL_BASE/conninfra.tar.gz" 2>/dev/null || \
+            wget -q -nc -O dl/conninfra.tar.xz "$DL_BASE/conninfra.tar.xz" 2>/dev/null || \
+            echo "⚠️ conninfra 包下载失败，请手动检查 dl 目录"
+
+            wget -q -nc -O dl/mt_wifi.tar.gz "$DL_BASE/mt_wifi.tar.gz" 2>/dev/null || \
+            wget -q -nc -O dl/mt_wifi.tar.xz "$DL_BASE/mt_wifi.tar.xz" 2>/dev/null || \
+            echo "⚠️ mt_wifi 包下载失败，请手动检查 dl 目录"
+
+            wget -q -nc -O dl/warp.tar.gz "$DL_BASE/warp.tar.gz" 2>/dev/null || \
+            wget -q -nc -O dl/warp.tar.xz "$DL_BASE/warp.tar.xz" 2>/dev/null || \
+            echo "⚠️ warp 包下载失败，请手动检查 dl 目录"
+
+            wget -q -nc -O dl/datconf.tar.gz "$DL_BASE/datconf.tar.gz" 2>/dev/null || \
+            wget -q -nc -O dl/datconf.tar.xz "$DL_BASE/datconf.tar.xz" 2>/dev/null || \
+            echo "⚠️ datconf 包下载失败，请手动检查 dl 目录"
+
+            echo "===== 补充后 dl 目录内容 ====="
+            ls -lh dl/ | grep -E "conninfra|mt_wifi|warp|datconf" || echo "未找到相关文件"
           else
-            echo "===== 非 237 源码，跳过 dl 目录检查，由源码自身处理下载 ====="
+            echo "===== 非 237 源码，跳过 dl 检查与补充 ====="
           fi
 
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"

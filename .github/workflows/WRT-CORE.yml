@@ -104,6 +104,13 @@ jobs:
           WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
           WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
 
+          # 计算精简版本号，例如从 openwrt-24.10-6.6 提取为 24.10.6
+          BRANCH_CLEAN=${WRT_BRANCH#openwrt-}   # 24.10-6.6
+          VER_PART=${BRANCH_CLEAN%%-*}          # 24.10
+          KERNEL_PART=${BRANCH_CLEAN#*-}        # 6.6
+          KERNEL_MAJOR=${KERNEL_PART%%.*}       # 6
+          WRT_SHORT_VERSION="${VER_PART}.${KERNEL_MAJOR}" # 24.10.6
+
           {
             echo "WRT_INFO=${WRT_SOURCE%%/*}"
             echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")"
@@ -115,6 +122,7 @@ jobs:
             echo "WRT_WIFI=wifi-yes"
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
+            echo "WRT_SHORT_VERSION=$WRT_SHORT_VERSION"
           } >> "$GITHUB_ENV"
           echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
 
@@ -276,82 +284,83 @@ jobs:
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          # 1. 导出配置文本（精简命名）
+          cp -f ./.config ./upload/Config-"$WRT_NAME"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
 
-          echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
+          # 2. 提取内核版本和插件列表
+          echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.json" -o -name "*.sha256sums" \) -delete
-          find ./bin/targets/ -type d -name "packages" -exec rm -rf {} + 2>/dev/null || true
-
-          find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
+          # 3. 将所有核心文件平铺移动到 upload 目录
+          find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.manifest" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
 
           make clean -j$(nproc)
 
-          echo "==== upload 目录内容 ===="
+          echo "==== 最终 upload 目录内容（所有文件已平铺） ===="
           ls -lh ./upload/
 
       - name: 发布固件
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ${{env.WRT_CONFIG}}-${{inputs.WRT_DEVICE || 'ALL'}}-${{env.WRT_INFO}}-${{env.WRT_BRANCH}}-${{env.WRT_DATE}}
-          files: ./wrt/upload/*.*
+          tag_name: ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_CONFIG }}-${{ env.WRT_SHORT_VERSION }}
+          name: "ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_SHORT_VERSION }}"
+          files: |
+            ./wrt/upload/*.bin
+            ./wrt/upload/*.ubi
+            ./wrt/upload/*.itb
+            ./wrt/upload/*.fip
+            ./wrt/upload/*.manifest
+            ./wrt/upload/*.json
+            ./wrt/upload/*.sha256sums
+            ./wrt/upload/Config-*.txt
           body: |
-            这是一个平台固件包
+            # ImmortalWrt | ${{ env.WRT_NAME }} (${{ env.WRT_CONFIG }}) - ${{ env.WRT_SHORT_VERSION }}
 
-            **编译机型**：${{ inputs.WRT_DEVICE || '全设备' }}
+            ## 📋 固件信息
+            | 项目 | 值 |
+            |------|-----|
+            | **设备** | ${{ inputs.WRT_DEVICE || '全设备' }} |
+            | **配置** | ${{ env.WRT_CONFIG }} |
+            | **精简版本** | ${{ env.WRT_SHORT_VERSION }} |
+            | **内核版本** | ${{ env.WRT_KVER }} |
+            | **登录地址** | ${{ env.WRT_IP }} |
+            | **登录密码** | ${{ env.WRT_PW }} |
+            | **WIFI名称** | ${{ env.WRT_SSID }} |
+            | **WIFI密码** | ${{ env.WRT_WORD }} |
 
-            源码：${{env.WRT_REPO}}
-            分支：${{env.WRT_BRANCH}}
-            提交：${{env.WRT_HASH}}
+            ## 📥 下载指引 (所有分区核心文件已全部平铺，请按需选择)
+            由于不同机型的分区布局不同，释放出的文件后缀也会有所差异，请根据您的机型选择：
 
-            配置：${{env.WRT_CONFIG}}
-            平台：${{env.WRT_TARGET}}
+            *   **主固件（系统内升级）**：
+                *   `*-squashfs-sysupgrade.bin` 或 `*-squashfs-sysupgrade.itb`
+            *   **过渡固件（Uboot/救砖）**：
+                *   `*-initramfs-factory.ubi`
+                *   `*-initramfs-kernel.bin`
+                *   `*-initramfs-recovery.itb`
+            *   **底层引导文件（按需刷写，不同机型可能包含部分或全部）**：
+                *   `*-bl2.bin`
+                *   `preloader.bin`
+                *   `*-uboot.fip`
+                *   `*-bl31-uboot.fip`
+            *   **系统识别与升级校验文件（请勿修改文件名）**：
+                *   `profiles.json`、`index.json`
+                *   `*.manifest`、`*.sha256sums`
 
-            登录地址：${{env.WRT_IP}}
-            登录密码：${{env.WRT_PW}}
+            ## 📝 默认配置
+            - **IP 地址**: `${{ env.WRT_IP }}`
+            - **主机名**: `${{ env.WRT_NAME }}`
+            - **Wi-Fi SSID**: `${{ env.WRT_SSID }}`
+            - **Wi-Fi 密码**: `${{ env.WRT_WORD }}`
 
-            WIFI名称：${{env.WRT_SSID}}
-            WIFI密码：${{env.WRT_WORD}}
+            ## ⚠️ 刷机提示
+            > 刷机有风险，注意备份文件数据，请务必在早上或晚上刷机。
+            > 如果刷了 H大 uboot，**只能选择默认分区**，不支持 `immortalwrt-112m` 和 `qwrt` 布局。
+            > 💡 刷机后请进入 **网络 → TurboACC**，全锥形 NAT 选择“兼容”模式。
 
-            内核版本：${{env.WRT_KVER}}
-            插件列表：${{env.WRT_LIST}}
-
-  cache-rollover:
-    name: 滚动缓存世代
-    needs: core
-    if: ${{ !inputs.WRT_TEST && needs.core.result == 'success' }}
-    runs-on: ubuntu-latest
-    concurrency:
-      group: wrt-cache-rollover-${{github.ref}}-${{needs.core.outputs.cache_prefix}}
-      cancel-in-progress: false
-    env:
-      GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-      GH_REPO: ${{github.repository}}
-      WRT_CACHE_PREFIX: ${{needs.core.outputs.cache_prefix}}
-      WRT_CACHE_KEY: ${{needs.core.outputs.cache_key}}
-    steps:
-      - name: 滚动编译缓存
-        run: |
-          set -euo pipefail
-          CURRENT_CACHE_KEYS=$(gh cache list --repo "$GH_REPO" --key "$WRT_CACHE_KEY" --ref "$GITHUB_REF" --limit 100 --json key --jq '.[].key')
-          CURRENT_CACHE_FOUND=0
-          while IFS= read -r CACHE_KEY; do
-            if [ "$CACHE_KEY" = "$WRT_CACHE_KEY" ]; then
-              CURRENT_CACHE_FOUND=1
-              break
-            fi
-          done <<< "$CURRENT_CACHE_KEYS"
-
-          if [ "$CURRENT_CACHE_FOUND" -ne 1 ]; then
-            echo "跳过缓存滚动：当前缓存尚不可用"
-            exit 0
-          fi
-
-          gh cache list --repo "$GH_REPO" --key "$WRT_CACHE_PREFIX-" --ref "$GITHUB_REF" --limit 100 --json id,key --jq '.[] | [.id, .key] | @tsv' |
-            while IFS=$'\t' read -r CACHE_ID CACHE_KEY; do
-              [ -n "$CACHE_ID" ] || continue
-              [ "$CACHE_KEY" = "$WRT_CACHE_KEY" ] && continue
-              gh cache delete "$CACHE_ID" --repo "$GH_REPO" ||
-                echo "警告：删除缓存失败 $CACHE_ID ($CACHE_KEY)"
-            done
+            ## 📦 插件列表
+            ${{ env.WRT_LIST }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

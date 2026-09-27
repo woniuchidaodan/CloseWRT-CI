@@ -144,18 +144,29 @@ jobs:
 
           # ========== 仅对 237 仓库自动补充缺失的 dl 包 ==========
           if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
-            echo "===== 237 源码，从 mt798x-mt799x-6.6-mtwifi 分支补充配套 dl 包 ====="
+            echo "===== 237 源码，强制补充配套 dl 包（20231229 版本） ====="
             mkdir -p dl
-            # 使用 237 官方分支的 dl 目录，保证 conninfra/warp/mt_wifi 版本完全配套（统一使用 20231229 版本）
+            
+            # 1. 彻底清理容易冲突的旧包（删除 237 源码自带的旧版 warp 和 mt79xx 驱动）
+            rm -f dl/warp_*.tar.xz dl/mt79xx_*.tar.xz dl/mt798x-*.tar.xz dl/mt7981-*.tar.xz dl/mt7986-*.tar.xz 2>/dev/null || true
+
+            # 2. 强制下载配套包（使用 237 官方 mt798x-mt799x-6.6-mtwifi 分支）
             DL_BASE="https://github.com/padavanonly/immortalwrt-mt798x-6.6/raw/mt798x-mt799x-6.6-mtwifi/dl"
             
-            wget -q -nc -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || echo "conninfra 下载失败"
-            wget -q -nc -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || echo "warp 下载失败"
-            wget -q -nc -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || echo "datconf 下载失败"
-            wget -q -nc -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || echo "mt_wifi 下载失败"
+            echo "下载 conninfra..."
+            wget -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || { echo "❌ conninfra 下载失败"; exit 1; }
+            
+            echo "下载 warp..."
+            wget -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || { echo "❌ warp 下载失败"; exit 1; }
+            
+            echo "下载 datconf..."
+            wget -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || { echo "❌ datconf 下载失败"; exit 1; }
+            
+            echo "下载 mt_wifi 主驱动..."
+            wget -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || { echo "❌ mt_wifi 主驱动下载失败"; exit 1; }
 
             echo "===== 补充后 dl 目录内容 ====="
-            ls -lh dl/ | grep -E "conninfra|mt_wifi|warp|datconf" || echo "未找到相关文件"
+            ls -lh dl/ | grep -E "conninfra|mt79xx|warp|datconf"
           else
             echo "===== 非 237 源码，跳过 dl 补充 ====="
           fi

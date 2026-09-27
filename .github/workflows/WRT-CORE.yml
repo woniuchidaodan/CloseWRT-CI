@@ -181,6 +181,9 @@ jobs:
         run: |
           cd ./wrt/
 
+          # 删除源码自带的 .config，避免源码自带设备被保留
+          rm -f .config
+
           if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
@@ -189,7 +192,30 @@ jobs:
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          make defconfig -j$(nproc) && make clean -j$(nproc)
+          # 用 olddefconfig，不重扫多设备
+          yes "" | make olddefconfig -j$(nproc)
+
+          # olddefconfig 后再次过滤设备
+          if [ -n "$WRT_DEVICE" ]; then
+            echo "===== olddefconfig 后再次过滤设备: $WRT_DEVICE ====="
+            awk -v device="$WRT_DEVICE" '
+              /^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/ {
+                if ($0 ~ "DEVICE_" device "=y") print $0;
+                next
+              }
+              /^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_/ {
+                if ($0 ~ "DEVICE_" device "=") print $0;
+                next
+              }
+              { print }
+            ' .config > .config.new
+            mv .config.new .config
+
+            echo "===== 当前生效的设备 ====="
+            grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config
+          fi
+
+          make clean -j$(nproc)
 
       - name: 下载源码包
         if: ${{ !inputs.WRT_TEST }}
@@ -240,18 +266,14 @@ jobs:
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
-          # 导出编译配置
           cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
 
-          # 提取内核版本和插件列表
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \;)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 删除辅助文件
           find ./bin/targets/ -type f \( -name "*.buildinfo" -o -name "*.json" -o -name "*.sha256sums" \) -delete
           find ./bin/targets/ -type d -name "packages" -exec rm -rf {} + 2>/dev/null || true
 
-          # 保留原始文件名，直接移动
           find ./bin/targets/ -type f -exec mv -f {} ./upload/ \;
 
           make clean -j$(nproc)

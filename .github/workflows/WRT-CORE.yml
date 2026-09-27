@@ -144,13 +144,15 @@ jobs:
 
           # ========== 仅对 237 仓库自动补充缺失的 dl 包 ==========
           if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
-            echo "===== 237 源码，从 lgs2007m v7672 分支自动补充 dl 包 ====="
+            echo "===== 237 源码，从 mt798x-mt799x-6.6-mtwifi 分支补充配套 dl 包 ====="
             mkdir -p dl
-            DL_BASE="https://github.com/lgs2007m/immortalwrt-mt798x/raw/v7672/dl"
-            # 根据 237 的 6.6 内核，使用配套的驱动源码包（匹配 mt_wifi v7.6.7.2）
+            # 使用 237 官方分支的 dl 目录，保证 conninfra/warp/mt_wifi 版本完全配套（统一使用 20231229 版本）
+            DL_BASE="https://github.com/padavanonly/immortalwrt-mt798x-6.6/raw/mt798x-mt799x-6.6-mtwifi/dl"
+            
             wget -q -nc -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || echo "conninfra 下载失败"
             wget -q -nc -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || echo "warp 下载失败"
             wget -q -nc -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || echo "datconf 下载失败"
+            wget -q -nc -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || echo "mt_wifi 下载失败"
 
             echo "===== 补充后 dl 目录内容 ====="
             ls -lh dl/ | grep -E "conninfra|mt_wifi|warp|datconf" || echo "未找到相关文件"

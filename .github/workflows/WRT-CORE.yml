@@ -291,12 +291,21 @@ jobs:
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 3. 将所有核心文件平铺移动到 upload 目录
-          find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.manifest" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
+          # 3. 移动固件和系统文件（排除 manifest，稍后单独处理）
+          find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
+
+          # 4. 精准移动 manifest：如果指定了设备，只抓目标设备的；如果是全设备编译，抓全部
+          if [ -n "$WRT_DEVICE" ]; then
+            echo "===== 只打包目标设备 [$WRT_DEVICE] 的 manifest ====="
+            find ./bin/targets/ -type f -name "*${WRT_DEVICE}*.manifest" -exec mv -f {} ./upload/ \;
+          else
+            echo "===== 打包所有 manifest（全设备编译） ====="
+            find ./bin/targets/ -type f -name "*.manifest" -exec mv -f {} ./upload/ \;
+          fi
 
           make clean -j$(nproc)
 
-          echo "==== 最终 upload 目录内容（所有文件已平铺） ===="
+          echo "==== 最终 upload 目录内容 ===="
           ls -lh ./upload/
 
       - name: 发布固件

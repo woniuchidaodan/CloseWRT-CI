@@ -142,12 +142,16 @@ jobs:
             exit 0
           fi
 
-          # 检查源码自带的 dl 目录（237 大佬仓库已包含）
-          if [ -d "dl" ]; then
-            echo "===== 源码自带 dl 目录，包含以下文件 ====="
-            ls -lh dl/ | head -20
+          # 仅当源码为 237 的仓库时，展示其自带的 dl 目录
+          if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
+            if [ -d "dl" ]; then
+              echo "===== 237 源码自带 dl 目录，包含以下文件 ====="
+              ls -lh dl/
+            else
+              echo "⚠️ 警告：未找到 dl 目录"
+            fi
           else
-            echo "⚠️ 警告：未找到 dl 目录，将依赖 make download 自动下载"
+            echo "===== 非 237 源码，跳过 dl 目录检查，由源码自身处理下载 ====="
           fi
 
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"

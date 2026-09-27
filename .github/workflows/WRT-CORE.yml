@@ -146,15 +146,12 @@ jobs:
           if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
             echo "===== 237 源码，从 lgs2007m v7672 分支自动补充 dl 包 ====="
             mkdir -p dl
-            # 通过 GitHub API 获取 v7672/dl 目录下所有文件名，筛选出 conninfra、mt_wifi、warp、datconf 并下载
-            DL_API="https://api.github.com/repos/lgs2007m/immortalwrt-mt798x/contents/dl?ref=v7672"
-            curl -s "$DL_API" | jq -r '.[] | select(.name | test("conninfra|mt_wifi|warp|datconf")) | .download_url' | while read url; do
-              if [ -n "$url" ]; then
-                fname=$(basename "$url")
-                echo "下载 $fname"
-                wget -q -nc -O "dl/$fname" "$url"
-              fi
-            done
+            DL_BASE="https://github.com/lgs2007m/immortalwrt-mt798x/raw/v7672/dl"
+            # 根据 237 的 6.6 内核，使用配套的驱动源码包（匹配 mt_wifi v7.6.7.2）
+            wget -q -nc -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || echo "conninfra 下载失败"
+            wget -q -nc -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || echo "warp 下载失败"
+            wget -q -nc -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || echo "datconf 下载失败"
+
             echo "===== 补充后 dl 目录内容 ====="
             ls -lh dl/ | grep -E "conninfra|mt_wifi|warp|datconf" || echo "未找到相关文件"
           else

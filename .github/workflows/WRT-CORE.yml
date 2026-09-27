@@ -191,29 +191,26 @@ jobs:
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
           fi
 
-          # ========== 3. 执行 Settings.sh ==========
+          # ========== 3. 导出 DEVICE 变量给 diy.sh ==========
+          export DEVICE="${WRT_DEVICE:-}"
+
+          # ========== 4. 执行 Settings.sh ==========
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          # ========== 4. 用 defconfig（容忍递归依赖） ==========
-          make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log
+          # ========== 5. 用 defconfig 补全依赖（容忍递归依赖错误） ==========
+          make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log || true
 
-          # ========== 5. defconfig 后再 awk 过滤设备 ==========
+          # ========== 6. defconfig 后强制写回目标机型 ==========
           if [ -n "$WRT_DEVICE" ]; then
-            echo "===== defconfig 后过滤设备: $WRT_DEVICE ====="
-            awk -v device="$WRT_DEVICE" '
-              /^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/ {
-                if ($0 ~ "DEVICE_" device "=y") print $0;
-                next
-              }
-              /^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_/ {
-                if ($0 ~ "DEVICE_" device "=") print $0;
-                next
-              }
-              { print }
-            ' .config > .config.new
-            mv .config.new .config
+            echo "===== 强制写回目标机型: $WRT_DEVICE ====="
 
-            # ========== 6. 强制写死 MULTI_PROFILE 和 PER_DEVICE_ROOTFS ==========
+            sed -i '/^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+            sed -i '/^CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_/d' .config
+            sed -i '/^# CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_/d' .config
+
+            echo "CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_${WRT_DEVICE}=y" >> .config
+            echo "CONFIG_TARGET_DEVICE_PACKAGES_mediatek_filogic_DEVICE_${WRT_DEVICE}=\"\"" >> .config
+
             sed -i '/^CONFIG_TARGET_MULTI_PROFILE=/d' .config
             sed -i '/^CONFIG_TARGET_PER_DEVICE_ROOTFS=/d' .config
             echo "CONFIG_TARGET_MULTI_PROFILE=y" >> .config

@@ -51,34 +51,20 @@ jobs:
       matrix:
         CONFIG: [MT7981, MT7986]
         REPO_INFO:
-          - {SOURCE: "Yuzhii0718/immortalwrt-mt798x-6.6-padavanonly", BRANCH: "openwrt-24.10-6.6"}
+          - {SOURCE: "padavanonly/immortalwrt-mt798x-6.6", BRANCH: "openwrt-24.10-6.6"}
 
-    # 调用公用编译核心 WRT-CORE.yml
     uses: ./.github/workflows/WRT-CORE.yml
     with:
-      # 编译配置
       WRT_CONFIG: ${{matrix.CONFIG}}
-      # 不指定机型（编译所有设备）
       WRT_DEVICE: ""
-      # 默认主题
       WRT_THEME: aurora
-      # 默认主机名
       WRT_NAME: WR30U
-      # 默认WIFI名称
       WRT_SSID: CMCC-7920
-      # 默认WIFI密码
       WRT_WORD: 123456789
-      # 默认地址
       WRT_IP: 192.168.1.2
-      # 默认密码，仅作提示，修改无用
       WRT_PW: 无
-      # 源码链接
       WRT_REPO: https://github.com/${{matrix.REPO_INFO.SOURCE}}.git
-      # 源码分支
       WRT_BRANCH: ${{matrix.REPO_INFO.BRANCH}}
-      # 源码名称
       WRT_SOURCE: ${{matrix.REPO_INFO.SOURCE}}
-      # 插件调整
       WRT_PACKAGE: ${{inputs.PACKAGE}}
-      # 仅输出配置文件
       WRT_TEST: ${{inputs.TEST || false}}

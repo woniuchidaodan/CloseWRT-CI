@@ -1,11 +1,3 @@
-# 高质量<免费>交流群
-
-[IPQ技术讨论群](https://qm.qq.com/q/v7nMhzB4oU)
-
-# 高质量<付费>中转站
-
-[LiBwrt-Ai](https://api.zipimg.cn/register?aff=LR7FSZ2ZZ4D3)
-
 # 本地编译器
 
 https://github.com/VIKINGYFY/OWRT-Tools.git
@@ -21,6 +13,8 @@ https://github.com/VIKINGYFY/packages.git
 https://github.com/chasey-dev/immortalwrt-mt798x-rebase.git
 
 https://github.com/Yuzhii0718/immortalwrt-mt798x-6.6-padavanonly.git
+
+https://github.com/padavanonly/immortalwrt-mt798x-6.6.git
 
 # U-BOOT
 

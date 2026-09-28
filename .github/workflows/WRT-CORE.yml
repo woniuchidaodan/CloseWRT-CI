@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
-# 云编译公用核心
 name: WRT-核心
 
 on:
@@ -145,98 +144,73 @@ jobs:
             echo "===== 237 源码，强制清理并补充配套 dl 包（20231229 版本） ====="
             mkdir -p dl
 
-            echo "正在清理旧版驱动包..."
             find dl/ -type f \( -name "*warp*" -o -name "*mt79*" -o -name "*mt798*" -o -name "*datconf*" \) -delete 2>/dev/null || true
 
             DL_BASE="https://github.com/padavanonly/immortalwrt-mt798x-6.6/raw/mt798x-mt799x-6.6-mtwifi/dl"
 
-            echo "下载 conninfra..."
             wget -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || { echo "❌ conninfra 下载失败"; exit 1; }
-
-            echo "下载 warp..."
             wget -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || { echo "❌ warp 下载失败"; exit 1; }
-
-            echo "下载 datconf..."
             wget -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || { echo "❌ datconf 下载失败"; exit 1; }
-
-            echo "下载 mt_wifi 主驱动..."
             wget -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || { echo "❌ mt_wifi 主驱动下载失败"; exit 1; }
 
-            echo "===== 补充后 dl 目录内容 ====="
             ls -lh dl/ | grep -E "conninfra|mt79xx|warp|datconf"
 
-            echo "===== 强制修改 Makefile 版本以匹配已下载的 dl 包 ====="
+            HASH_WARP=$(sha256sum dl/warp_20231229-5f71ec.tar.xz | cut -d ' ' -f 1)
+            HASH_MTWIFI=$(sha256sum dl/mt79xx_20231229-4012a0.tar.xz | cut -d ' ' -f 1)
+            HASH_DATCONF=$(sha256sum dl/datconf-757f9679.tar.bz2 | cut -d ' ' -f 1)
 
-            # 修改 warp
-            WARP_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*warp*" | head -n 1)
-            if [ -n "$WARP_MAKEFILE" ]; then
-                echo "找到 warp Makefile: $WARP_MAKEFILE"
-                sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=20231229-5f71ec|' "$WARP_MAKEFILE"
-                sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=warp_20231229-5f71ec.tar.xz|' "$WARP_MAKEFILE"
-                NEW_WARP_HASH=$(sha256sum dl/warp_20231229-5f71ec.tar.xz | cut -d ' ' -f 1)
-                sed -i '/^PKG_HASH:=/d' "$WARP_MAKEFILE"
-                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_WARP_HASH" "$WARP_MAKEFILE"
-                if ! grep -q "PKG_SOURCE_URL" "$WARP_MAKEFILE"; then
-                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$WARP_MAKEFILE"
-                fi
-                echo "warp Makefile 已修改"
-            else
-                echo "❌ 未找到 warp Makefile"
-            fi
+            fix_makefile() {
+              local file=$1
+              local version=$2
+              local source=$3
+              local hash=$4
+              awk -v ver="$version" -v src="$source" -v h="$hash" '
+                /^PKG_VERSION:=/ { print "PKG_VERSION:=" ver; next }
+                /^PKG_SOURCE:=/ { next }
+                /^PKG_HASH:=/ { next }
+                /^PKG_SOURCE_URL:=/ { next }
+                /include \$\(INCLUDE_DIR\)\/package\.mk/ && !done {
+                  print "PKG_SOURCE:=" src
+                  print "PKG_HASH:=" h
+                  print "PKG_SOURCE_URL:=file://$(TOPDIR)/dl"
+                  done = 1
+                }
+                { print }
+              ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+            }
 
-            # 修改 mt_wifi
-            MTWIFI_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*mt_wifi*" | head -n 1)
-            if [ -n "$MTWIFI_MAKEFILE" ]; then
-                echo "找到 mt_wifi Makefile: $MTWIFI_MAKEFILE"
-                sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=20231229-4012a0|' "$MTWIFI_MAKEFILE"
-                sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=mt79xx_20231229-4012a0.tar.xz|' "$MTWIFI_MAKEFILE"
-                NEW_MTWIFI_HASH=$(sha256sum dl/mt79xx_20231229-4012a0.tar.xz | cut -d ' ' -f 1)
-                sed -i '/^PKG_HASH:=/d' "$MTWIFI_MAKEFILE"
-                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_MTWIFI_HASH" "$MTWIFI_MAKEFILE"
-                if ! grep -q "PKG_SOURCE_URL" "$MTWIFI_MAKEFILE"; then
-                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$MTWIFI_MAKEFILE"
-                fi
-                echo "mt_wifi Makefile 已修改"
-            else
-                echo "❌ 未找到 mt_wifi Makefile"
-            fi
+            fix_makefile "./package/mtk/drivers/warp/Makefile" "20231229-5f71ec" "warp_20231229-5f71ec.tar.xz" "$HASH_WARP"
+            fix_makefile "./package/mtk/drivers/mt_wifi/Makefile" "20231229-4012a0" "mt79xx_20231229-4012a0.tar.xz" "$HASH_MTWIFI"
+            fix_makefile "./package/mtk/applications/datconf/Makefile" "757f9679" "datconf-757f9679.tar.bz2" "$HASH_DATCONF"
 
-            # 修改 datconf
-            DATCONF_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*datconf*" | head -n 1)
-            if [ -n "$DATCONF_MAKEFILE" ]; then
-                echo "找到 datconf Makefile: $DATCONF_MAKEFILE"
-                sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=757f9679|' "$DATCONF_MAKEFILE"
-                sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=datconf-757f9679.tar.bz2|' "$DATCONF_MAKEFILE"
-                NEW_DATCONF_HASH=$(sha256sum dl/datconf-757f9679.tar.bz2 | cut -d ' ' -f 1)
-                sed -i '/^PKG_HASH:=/d' "$DATCONF_MAKEFILE"
-                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_DATCONF_HASH" "$DATCONF_MAKEFILE"
-                if ! grep -q "PKG_SOURCE_URL" "$DATCONF_MAKEFILE"; then
-                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$DATCONF_MAKEFILE"
-                fi
-                echo "datconf Makefile 已修改"
-            else
-                echo "❌ 未找到 datconf Makefile"
-            fi
+            echo "===== 修复 conninfra 源码（追加覆盖 + 保留 Makefile） ====="
+            CONNINFRA_DIR="./package/mtk/drivers/conninfra"
 
-            # 覆盖 conninfra 本地源码
-            echo "===== 修复 conninfra：强制解压配套源码覆盖本地源码 ====="
-            CONNINFRA_DIR=$(find ./package -type d -path "*conninfra*" | head -n 1)
-            if [ -n "$CONNINFRA_DIR" ]; then
-                echo "找到 conninfra 目录: $CONNINFRA_DIR"
-                mkdir -p /tmp/conninfra_extract
-                tar -xf dl/mt79xx_conninfra_20231229-f2fa25.tar.xz -C /tmp/conninfra_extract --strip-components=1
-                if [ -d "/tmp/conninfra_extract/src" ]; then
-                    rm -rf "$CONNINFRA_DIR/src"
-                    cp -rf /tmp/conninfra_extract/src "$CONNINFRA_DIR/"
-                else
-                    mkdir -p "$CONNINFRA_DIR/src"
-                    cp -rf /tmp/conninfra_extract/* "$CONNINFRA_DIR/src/"
-                fi
-                rm -rf /tmp/conninfra_extract
-                echo "conninfra 本地源码已替换为 20231229 版本"
-            else
-                echo "❌ 未找到 conninfra 目录"
-            fi
+            # 备份 237 原生 Makefile
+            cp "$CONNINFRA_DIR/src/Makefile" /tmp/conninfra_Makefile.bak
+
+            # 解压 tarball 到临时目录
+            mkdir -p /tmp/conninfra_extract
+            tar -xf dl/mt79xx_conninfra_20231229-f2fa25.tar.xz -C /tmp/conninfra_extract --strip-components=1
+
+            # 追加覆盖（不删除原文件，保留 Makefile 及头文件）
+            cp -rf /tmp/conninfra_extract/* "$CONNINFRA_DIR/src/"
+
+            # 恢复原生 Makefile
+            cp /tmp/conninfra_Makefile.bak "$CONNINFRA_DIR/src/Makefile"
+
+            # 6.6 内核里 struct timeval 已改名，全局替换
+            find "$CONNINFRA_DIR/src/" -type f \( -name "*.c" -o -name "*.h" \) \
+              -exec sed -i 's/struct timeval/struct __kernel_old_timeval/g' {} \;
+
+            # 给 EXTRA_CFLAGS 追加 -Wno-error，防止警告升级为错误
+            sed -i 's|^EXTRA_CFLAGS+=-DEEPROM_NAME=|EXTRA_CFLAGS+=-Wno-error -DEEPROM_NAME=|' "$CONNINFRA_DIR/Makefile"
+
+            rm -rf /tmp/conninfra_extract
+
+            echo "===== conninfra 修复结果 ====="
+            ls "$CONNINFRA_DIR/src/" | head -5
+            grep -n "EXTRA_CFLAGS" "$CONNINFRA_DIR/Makefile"
           else
             echo "===== 非 237 源码，跳过 dl 补充 ====="
           fi
@@ -317,7 +291,6 @@ jobs:
             echo "CONFIG_TARGET_MULTI_PROFILE=y" >> .config
             echo "CONFIG_TARGET_PER_DEVICE_ROOTFS=y" >> .config
 
-            echo "===== 当前生效的设备 ====="
             grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config
 
             if [ -z "$(grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config)" ]; then
@@ -385,16 +358,13 @@ jobs:
           find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
 
           if [ -n "$WRT_DEVICE" ]; then
-            echo "===== 只打包目标设备 [$WRT_DEVICE] 的 manifest ====="
             find ./bin/targets/ -type f -name "*${WRT_DEVICE}*.manifest" -exec mv -f {} ./upload/ \;
           else
-            echo "===== 打包所有 manifest（全设备编译） ====="
             find ./bin/targets/ -type f -name "*.manifest" -exec mv -f {} ./upload/ \;
           fi
 
           make clean -j$(nproc)
 
-          echo "==== 最终 upload 目录内容 ===="
           ls -lh ./upload/
 
       - name: 发布固件
@@ -426,23 +396,13 @@ jobs:
             | **WIFI名称** | ${{ env.WRT_SSID }} |
             | **WIFI密码** | ${{ env.WRT_WORD }} |
 
-            ## 📥 下载指引 (所有分区核心文件已全部平铺，请按需选择)
+            ## 📥 下载指引
             由于不同机型的分区布局不同，释放出的文件后缀也会有所差异，请根据您的机型选择：
 
-            *   **主固件（系统内升级）**：
-                *   `*-squashfs-sysupgrade.bin` 或 `*-squashfs-sysupgrade.itb`
-            *   **过渡固件（Uboot/救砖）**：
-                *   `*-initramfs-factory.ubi`
-                *   `*-initramfs-kernel.bin`
-                *   `*-initramfs-recovery.itb`
-            *   **底层引导文件（按需刷写，不同机型可能包含部分或全部）**：
-                *   `*-bl2.bin`
-                *   `preloader.bin`
-                *   `*-uboot.fip`
-                *   `*-bl31-uboot.fip`
-            *   **系统识别与升级校验文件（请勿修改文件名）**：
-                *   `profiles.json`、`index.json`
-                *   `*.manifest`、`*.sha256sums`
+            *   **主固件（系统内升级）**：`*-squashfs-sysupgrade.bin` 或 `*-squashfs-sysupgrade.itb`
+            *   **过渡固件（Uboot/救砖）**：`*-initramfs-factory.ubi`、`*-initramfs-kernel.bin`、`*-initramfs-recovery.itb`
+            *   **底层引导文件（按需刷写）**：`*-bl2.bin`、`preloader.bin`、`*-uboot.fip`、`*-bl31-uboot.fip`
+            *   **系统识别与校验文件（请勿修改文件名）**：`profiles.json`、`index.json`、`*.manifest`、`*.sha256sums`
 
             ## 📝 默认配置
             - **IP 地址**: `${{ env.WRT_IP }}`

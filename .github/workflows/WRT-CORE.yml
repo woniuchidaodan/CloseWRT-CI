@@ -186,30 +186,31 @@ jobs:
             echo "===== 修复 conninfra 源码（追加覆盖 + 保留 Makefile） ====="
             CONNINFRA_DIR="./package/mtk/drivers/conninfra"
 
-            # 备份 237 原生 Makefile
             cp "$CONNINFRA_DIR/src/Makefile" /tmp/conninfra_Makefile.bak
 
-            # 解压 tarball 到临时目录
             mkdir -p /tmp/conninfra_extract
             tar -xf dl/mt79xx_conninfra_20231229-f2fa25.tar.xz -C /tmp/conninfra_extract --strip-components=1
 
-            # 追加覆盖（不删除原文件，保留 Makefile 及头文件）
             cp -rf /tmp/conninfra_extract/* "$CONNINFRA_DIR/src/"
 
-            # 恢复原生 Makefile
             cp /tmp/conninfra_Makefile.bak "$CONNINFRA_DIR/src/Makefile"
 
-            # 6.6 内核里 struct timeval 已改名，全局替换
+            # 6.6 内核里 struct timeval 已改名
             find "$CONNINFRA_DIR/src/" -type f \( -name "*.c" -o -name "*.h" \) \
               -exec sed -i 's/struct timeval/struct __kernel_old_timeval/g' {} \;
 
-            # 给 EXTRA_CFLAGS 追加 -Wno-error，防止警告升级为错误
+            # 6.6 内核里 class_create 去掉了 owner 参数
+            find "$CONNINFRA_DIR/src/" -type f \( -name "*.c" -o -name "*.h" \) \
+              -exec sed -i 's/class_create(THIS_MODULE, /class_create(/g' {} \;
+
+            # 给 EXTRA_CFLAGS 追加 -Wno-error，防止剩余警告升级为错误
             sed -i 's|^EXTRA_CFLAGS+=-DEEPROM_NAME=|EXTRA_CFLAGS+=-Wno-error -DEEPROM_NAME=|' "$CONNINFRA_DIR/Makefile"
 
             rm -rf /tmp/conninfra_extract
 
             echo "===== conninfra 修复结果 ====="
             ls "$CONNINFRA_DIR/src/" | head -5
+            grep -n "class_create" "$CONNINFRA_DIR/src/conninfra_dev.c" || true
             grep -n "EXTRA_CFLAGS" "$CONNINFRA_DIR/Makefile"
           else
             echo "===== 非 237 源码，跳过 dl 补充 ====="

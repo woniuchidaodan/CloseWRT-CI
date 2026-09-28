@@ -269,8 +269,8 @@ jobs:
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
           echo "==== openwrt_release ===="
           cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
-          echo "==== 固件列表（原始） ===="
-          ls -lh bin/targets/mediatek/filogic/ 2>/dev/null || echo "固件目录未找到"
+          echo "==== 固件目录完整列表 ===="
+          ls -lhR bin/targets/mediatek/filogic/ 2>/dev/null || echo "固件目录未找到"
 
       - name: 打包固件
         if: ${{ !inputs.WRT_TEST }}
@@ -284,23 +284,16 @@ jobs:
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 3. 抓取所有核心文件（包含 buildinfo、sha256sums、bl2、manifest、json 等）
-          find ./bin/targets/ -type f \( \
-            -name "*sysupgrade.bin"   -o \
-            -name "*sysupgrade.itb"   -o \
-            -name "*factory.ubi"      -o \
-            -name "*kernel.bin"       -o \
-            -name "*recovery.itb"     -o \
-            -name "*.fip"             -o \
-            -name "preloader.bin"     -o \
-            -name "*.json"            -o \
-            -name "*.sha256sums"      -o \
-            -name "*.buildinfo"       -o \
-            -name "*-bl2.bin"         -o \
-            -name "*.manifest"        \
-          \) -exec mv -f {} ./upload/ \;
+          # 3. 全量复制目标机型的整个目录（包括子目录里的所有文件）
+          echo "===== 复制前，bin/targets/mediatek/filogic/ 内容 ====="
+          ls -lhR ./bin/targets/mediatek/filogic/
 
-          # 4. 反向删除无关机型的 manifest（保留目标机型 + Packages.manifest）
+          # 先复制一层普通文件
+          cp -f ./bin/targets/mediatek/filogic/* ./upload/ 2>/dev/null || true
+          # 再递归抓取子目录里的所有文件（bl2 等在子目录里）
+          find ./bin/targets/mediatek/filogic/ -type f -exec mv -f {} ./upload/ \;
+
+          # 4. 剔除其他机型的 manifest（保留目标机型 + Packages.manifest）
           if [ -n "$WRT_DEVICE" ]; then
             echo "===== 剔除无关机型的 manifest ====="
             for m in ./upload/*.manifest; do
@@ -326,15 +319,7 @@ jobs:
           tag_name: ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_CONFIG }}-${{ env.WRT_SHORT_VERSION }}
           name: "ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_SHORT_VERSION }}"
           files: |
-            ./wrt/upload/*.bin
-            ./wrt/upload/*.ubi
-            ./wrt/upload/*.itb
-            ./wrt/upload/*.fip
-            ./wrt/upload/*.manifest
-            ./wrt/upload/*.json
-            ./wrt/upload/*.sha256sums
-            ./wrt/upload/*.buildinfo
-            ./wrt/upload/Config-*.txt
+            ./wrt/upload/*
           body: |
             # ImmortalWrt | ${{ env.WRT_NAME }} (${{ env.WRT_CONFIG }}) - ${{ env.WRT_SHORT_VERSION }}
 

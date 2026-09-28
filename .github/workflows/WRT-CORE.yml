@@ -104,7 +104,6 @@ jobs:
           WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
           WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
 
-          # 计算精简版本号，例如从 openwrt-24.10-6.6 提取为 24.10.6
           BRANCH_CLEAN=${WRT_BRANCH#openwrt-}
           VER_PART=${BRANCH_CLEAN%%-*}
           KERNEL_PART=${BRANCH_CLEAN#*-}
@@ -189,26 +188,20 @@ jobs:
         run: |
           cd ./wrt/
 
-          # ========== 1. 删除源码自带的 .config ==========
           rm -f .config
 
-          # ========== 2. 拼接我们的配置 ==========
           if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
           fi
 
-          # ========== 3. 导出 DEVICE 变量给 diy.sh ==========
           export DEVICE="${WRT_DEVICE:-}"
 
-          # ========== 4. 执行 Settings.sh ==========
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          # ========== 5. 用 defconfig 补全依赖（容忍递归依赖错误） ==========
           make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log || true
 
-          # ========== 6. defconfig 后强制写回目标机型 ==========
           if [ -n "$WRT_DEVICE" ]; then
             echo "===== 强制写回目标机型: $WRT_DEVICE ====="
 
@@ -291,16 +284,35 @@ jobs:
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 3. 所有核心文件平铺
-          find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
+          # 3. 抓取所有核心文件（包含 buildinfo、sha256sums、bl2、manifest、json 等）
+          find ./bin/targets/ -type f \( \
+            -name "*sysupgrade.bin"   -o \
+            -name "*sysupgrade.itb"   -o \
+            -name "*factory.ubi"      -o \
+            -name "*kernel.bin"       -o \
+            -name "*recovery.itb"     -o \
+            -name "*.fip"             -o \
+            -name "preloader.bin"     -o \
+            -name "*.json"            -o \
+            -name "*.sha256sums"      -o \
+            -name "*.buildinfo"       -o \
+            -name "*-bl2.bin"         -o \
+            -name "*.manifest"        \
+          \) -exec mv -f {} ./upload/ \;
 
-          # 4. 精准抓取 manifest（只抓目标机型，避免 abt_asr3000.manifest 混入）
+          # 4. 反向删除无关机型的 manifest（保留目标机型 + Packages.manifest）
           if [ -n "$WRT_DEVICE" ]; then
-            echo "===== 只打包目标设备 [$WRT_DEVICE] 的 manifest ====="
-            find ./bin/targets/ -type f -name "*${WRT_DEVICE}*.manifest" -exec mv -f {} ./upload/ \;
-          else
-            echo "===== 打包所有 manifest（全设备编译） ====="
-            find ./bin/targets/ -type f -name "*.manifest" -exec mv -f {} ./upload/ \;
+            echo "===== 剔除无关机型的 manifest ====="
+            for m in ./upload/*.manifest; do
+              [ -f "$m" ] || continue
+              fname=$(basename "$m")
+              if echo "$fname" | grep -qE "(^Packages\.manifest$)|(${WRT_DEVICE})"; then
+                echo "保留: $fname"
+              else
+                echo "剔除: $fname"
+                rm -f "$m"
+              fi
+            done
           fi
 
           make clean -j$(nproc)
@@ -321,6 +333,7 @@ jobs:
             ./wrt/upload/*.manifest
             ./wrt/upload/*.json
             ./wrt/upload/*.sha256sums
+            ./wrt/upload/*.buildinfo
             ./wrt/upload/Config-*.txt
           body: |
             # ImmortalWrt | ${{ env.WRT_NAME }} (${{ env.WRT_CONFIG }}) - ${{ env.WRT_SHORT_VERSION }}
@@ -343,7 +356,7 @@ jobs:
             *   **主固件（系统内升级）**：`*-squashfs-sysupgrade.bin` 或 `*-squashfs-sysupgrade.itb`
             *   **过渡固件（Uboot/救砖）**：`*-initramfs-factory.ubi`、`*-initramfs-kernel.bin`、`*-initramfs-recovery.itb`
             *   **底层引导文件（按需刷写）**：`*-bl2.bin`、`preloader.bin`、`*-uboot.fip`、`*-bl31-uboot.fip`
-            *   **系统识别与校验文件（请勿修改文件名）**：`profiles.json`、`index.json`、`*.manifest`、`*.sha256sums`
+            *   **系统识别与校验文件（请勿修改文件名）**：`profiles.json`、`index.json`、`*.manifest`、`*.sha256sums`、`*.buildinfo`
 
             ## 📝 默认配置
             - **IP 地址**: `${{ env.WRT_IP }}`

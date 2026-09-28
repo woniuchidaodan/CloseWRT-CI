@@ -1,16 +1,15 @@
 # ========== 基础 LuCI 与中文 ==========
-CONFIG_PACKAGE_luci=y
 CONFIG_PACKAGE_luci-base=y
 CONFIG_PACKAGE_luci-compat=y
 CONFIG_PACKAGE_luci-lib-base=y
 CONFIG_PACKAGE_luci-lib-ipkg=y
 CONFIG_PACKAGE_luci-lua-runtime=y
-CONFIG_LUCI_LANG_zh_Hans=y
-CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
 CONFIG_PACKAGE_luci-mod-admin-full=y
 CONFIG_PACKAGE_luci-mod-network=y
 CONFIG_PACKAGE_luci-mod-status=y
 CONFIG_PACKAGE_luci-mod-system=y
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
 
 # ========== Argon 主题 ==========
 CONFIG_PACKAGE_luci-theme-argon=y
@@ -30,6 +29,7 @@ CONFIG_PACKAGE_mtwifi-cfg=y
 CONFIG_PACKAGE_luci-app-turboacc-mtk=y
 CONFIG_PACKAGE_luci-i18n-turboacc-mtk-zh-cn=y
 CONFIG_PACKAGE_TURBOACC_INCLUDE_NO_FASTPATH=y
+# CONFIG_PACKAGE_TURBOACC_INCLUDE_FLOW_OFFLOADING is not set
 CONFIG_PACKAGE_kmod-tcp-bbr=y
 
 # ========== 定时重启 ==========
@@ -68,6 +68,20 @@ CONFIG_PACKAGE_kmod-lib-zstd=y
 # ========== 分区解锁 / opkg ==========
 CONFIG_PACKAGE_kmod-mtd-rw=y
 CONFIG_PACKAGE_opkg=y
+
+# ========== 保留 2 个实用小插件 ==========
+CONFIG_PACKAGE_luci-app-partexp=y
+CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
+CONFIG_PACKAGE_luci-app-wol=n
+
+# ========== 参数调整 ==========
+CONFIG_CCACHE=y
+CONFIG_DEVEL=y
+CONFIG_FEED_video=n
+CONFIG_TARGET_MULTI_PROFILE=y
+CONFIG_TARGET_PER_DEVICE_ROOTFS=y
+CONFIG_TARGET_ROOTFS_INITRAMFS=n
 
 # ========== iptables 兼容层与 UA2F 规则依赖 ==========
 CONFIG_PACKAGE_iptables-nft=y
@@ -109,7 +123,8 @@ CONFIG_PACKAGE_kmod-ipt-tee=y
 CONFIG_PACKAGE_kmod-ipt-tproxy=y
 CONFIG_PACKAGE_kmod-ipt-u32=y
 
-# ========== 闭源 MTK 系列 ==========
+# ========== 闭源 MTK 系列（必须保留） ==========
+CONFIG_PACKAGE_luci-app-eqos-mtk=y
 CONFIG_PACKAGE_blockd=y
 CONFIG_PACKAGE_ca-certificates=y
 CONFIG_PACKAGE_datconf=y
@@ -140,15 +155,12 @@ CONFIG_PACKAGE_kmod-ifb=y
 CONFIG_PACKAGE_kmod-ip6tables=y
 CONFIG_PACKAGE_kmod-ip6tables-extra=y
 CONFIG_PACKAGE_kmod-ipt-core=y
-CONFIG_PACKAGE_kmod-leds-gpio=y
 CONFIG_PACKAGE_kmod-lib-crc32c=y
 CONFIG_PACKAGE_kmod-lib-lzo=y
 CONFIG_PACKAGE_kmod-lib-zstd=y
 CONFIG_PACKAGE_kmod-mediatek_hnat=y
 CONFIG_PACKAGE_kmod-mt_wifi=y
 CONFIG_PACKAGE_kmod-nf-flow=y
-CONFIG_PACKAGE_kmod-nf-nathelper=y
-CONFIG_PACKAGE_kmod-nf-nathelper-extra=y
 CONFIG_PACKAGE_kmod-nls-base=y
 CONFIG_PACKAGE_kmod-nls-cp437=y
 CONFIG_PACKAGE_kmod-nls-iso8859-1=y
@@ -156,6 +168,7 @@ CONFIG_PACKAGE_kmod-nls-utf8=y
 CONFIG_PACKAGE_kmod-sched-core=y
 CONFIG_PACKAGE_kmod-warp=y
 CONFIG_PACKAGE_kvcedit=y
+CONFIG_PACKAGE_libatomic=y
 CONFIG_PACKAGE_libblkid=y
 CONFIG_PACKAGE_libcap-ng=y
 CONFIG_PACKAGE_libcbor=y
@@ -180,6 +193,7 @@ CONFIG_PACKAGE_mtk-smp=y
 CONFIG_PACKAGE_regs=y
 CONFIG_PACKAGE_resolveip=y
 CONFIG_PACKAGE_switch=y
+CONFIG_PACKAGE_tc-mod-iptables=y
 CONFIG_PACKAGE_tc-tiny=y
 CONFIG_PACKAGE_terminfo=y
 CONFIG_PACKAGE_wifi-dats=y
@@ -227,21 +241,24 @@ CONFIG_PACKAGE_urngd=y
 CONFIG_PACKAGE_usign=y
 CONFIG_PACKAGE_zlib=y
 
-# ========== 保留 2 个实用小插件 ==========
-CONFIG_PACKAGE_luci-app-partexp=y
-CONFIG_PACKAGE_luci-app-upnp=y
-CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
-CONFIG_PACKAGE_luci-app-wol=n
-
-# ========== 参数调整 ==========
-CONFIG_CCACHE=y
-CONFIG_DEVEL=y
-CONFIG_FEED_video=n
-CONFIG_TARGET_MULTI_PROFILE=y
-CONFIG_TARGET_PER_DEVICE_ROOTFS=y
-CONFIG_TARGET_ROOTFS_INITRAMFS=n
-
-# ========== MTK / CONNINFRA / WARP 宏（原样保留） ==========
+# ========== 以下为上游全部 MTK / CONNINFRA / WARP 宏（原样保留，一字不动） ==========
+# CONFIG_AFALG_FALLBACK is not set
+# CONFIG_GDB is not set
+# CONFIG_KERNEL_BLK_DEV_THROTTLING is not set
+# CONFIG_KERNEL_CFS_BANDWIDTH is not set
+# CONFIG_KERNEL_KEYS is not set
+# CONFIG_KERNEL_MEMCG_SWAP is not set
+# CONFIG_MTK_DEFAULT_5G_PROFILE is not set
+# CONFIG_MTK_MAC_REPEATER_SUPPORT is not set
+# CONFIG_MTK_MEMORY_SHRINK is not set
+# CONFIG_MTK_MEMORY_SHRINK_AGGRESS is not set
+# CONFIG_MTK_MULTI_PROFILE_SUPPORT is not set
+# CONFIG_MTK_PCIE_ASPM_DYM_CTRL_SUPPORT is not set
+# CONFIG_MTK_PRE_CAL_TRX_SET1_SUPPORT is not set
+# CONFIG_MTK_PRE_CAL_TRX_SET2_SUPPORT is not set
+# CONFIG_MTK_RLM_CAL_CACHE_SUPPORT is not set
+# CONFIG_MTK_SNIFFER_RADIOTAP_SUPPORT is not set
+# CONFIG_PACKAGE_l1util is not set
 CONFIG_first_card=y
 CONFIG_AFALG_UPDATE_CTR_IV=y
 CONFIG_CONNINFRA_AUTO_UP=y
@@ -341,16 +358,3 @@ CONFIG_WARP_DBG_SUPPORT=y
 CONFIG_WARP_MEMORY_LEAK_DBG=y
 CONFIG_WARP_VERSION=2
 CONFIG_WED_HW_RRO_SUPPORT=y
-
-# ========== 必须显式关闭的 MTK 宏（解决 eeprom.c PRE_CAL/DCOC/TXDPD 报错） ==========
-# CONFIG_MTK_BAND_STEERING is not set
-# CONFIG_MTK_DEFAULT_5G_PROFILE is not set
-# CONFIG_MTK_MAC_REPEATER_SUPPORT is not set
-# CONFIG_MTK_MEMORY_SHRINK is not set
-# CONFIG_MTK_MEMORY_SHRINK_AGGRESS is not set
-# CONFIG_MTK_MULTI_PROFILE_SUPPORT is not set
-# CONFIG_MTK_PCIE_ASPM_DYM_CTRL_SUPPORT is not set
-# CONFIG_MTK_PRE_CAL_TRX_SET1_SUPPORT is not set
-# CONFIG_MTK_PRE_CAL_TRX_SET2_SUPPORT is not set
-# CONFIG_MTK_RLM_CAL_CACHE_SUPPORT is not set
-# CONFIG_MTK_SNIFFER_RADIOTAP_SUPPORT is not set

@@ -104,12 +104,11 @@ jobs:
           WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
           WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
 
-          # 计算精简版本号，例如从 openwrt-24.10-6.6 提取为 24.10.6
-          BRANCH_CLEAN=${WRT_BRANCH#openwrt-}   # 24.10-6.6
-          VER_PART=${BRANCH_CLEAN%%-*}          # 24.10
-          KERNEL_PART=${BRANCH_CLEAN#*-}        # 6.6
-          KERNEL_MAJOR=${KERNEL_PART%%.*}       # 6
-          WRT_SHORT_VERSION="${VER_PART}.${KERNEL_MAJOR}" # 24.10.6
+          BRANCH_CLEAN=${WRT_BRANCH#openwrt-}
+          VER_PART=${BRANCH_CLEAN%%-*}
+          KERNEL_PART=${BRANCH_CLEAN#*-}
+          KERNEL_MAJOR=${KERNEL_PART%%.*}
+          WRT_SHORT_VERSION="${VER_PART}.${KERNEL_MAJOR}"
 
           {
             echo "WRT_INFO=${WRT_SOURCE%%/*}"
@@ -142,98 +141,94 @@ jobs:
             exit 0
           fi
 
-          # ========== 仅对 237 仓库自动补充缺失的 dl 包 ==========
           if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
             echo "===== 237 源码，强制清理并补充配套 dl 包（20231229 版本） ====="
             mkdir -p dl
-            
-            # 1. 彻底清理所有旧版驱动包
+
             echo "正在清理旧版驱动包..."
             find dl/ -type f \( -name "*warp*" -o -name "*mt79*" -o -name "*mt798*" -o -name "*datconf*" \) -delete 2>/dev/null || true
 
-            # 2. 强制下载配套包
             DL_BASE="https://github.com/padavanonly/immortalwrt-mt798x-6.6/raw/mt798x-mt799x-6.6-mtwifi/dl"
-            
+
             echo "下载 conninfra..."
             wget -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || { echo "❌ conninfra 下载失败"; exit 1; }
-            
+
             echo "下载 warp..."
             wget -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || { echo "❌ warp 下载失败"; exit 1; }
-            
+
             echo "下载 datconf..."
             wget -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || { echo "❌ datconf 下载失败"; exit 1; }
-            
+
             echo "下载 mt_wifi 主驱动..."
             wget -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || { echo "❌ mt_wifi 主驱动下载失败"; exit 1; }
 
             echo "===== 补充后 dl 目录内容 ====="
             ls -lh dl/ | grep -E "conninfra|mt79xx|warp|datconf"
 
-            # ========== 强制修改 Makefile 版本以匹配已下载的 dl 包 ==========
             echo "===== 强制修改 Makefile 版本以匹配已下载的 dl 包 ====="
-            
-            # 修改 warp Makefile
+
+            # 修改 warp
             WARP_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*warp*" | head -n 1)
             if [ -n "$WARP_MAKEFILE" ]; then
                 echo "找到 warp Makefile: $WARP_MAKEFILE"
                 sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=20231229-5f71ec|' "$WARP_MAKEFILE"
                 sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=warp_20231229-5f71ec.tar.xz|' "$WARP_MAKEFILE"
                 NEW_WARP_HASH=$(sha256sum dl/warp_20231229-5f71ec.tar.xz | cut -d ' ' -f 1)
-                sed -i "s|PKG_HASH:=.*|PKG_HASH:=$NEW_WARP_HASH|" "$WARP_MAKEFILE"
+                sed -i '/^PKG_HASH:=/d' "$WARP_MAKEFILE"
+                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_WARP_HASH" "$WARP_MAKEFILE"
                 if ! grep -q "PKG_SOURCE_URL" "$WARP_MAKEFILE"; then
-                    sed -i '/PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$WARP_MAKEFILE"
+                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$WARP_MAKEFILE"
                 fi
                 echo "warp Makefile 已修改"
             else
                 echo "❌ 未找到 warp Makefile"
             fi
 
-            # 修改 mt_wifi Makefile
+            # 修改 mt_wifi
             MTWIFI_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*mt_wifi*" | head -n 1)
             if [ -n "$MTWIFI_MAKEFILE" ]; then
                 echo "找到 mt_wifi Makefile: $MTWIFI_MAKEFILE"
                 sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=20231229-4012a0|' "$MTWIFI_MAKEFILE"
                 sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=mt79xx_20231229-4012a0.tar.xz|' "$MTWIFI_MAKEFILE"
                 NEW_MTWIFI_HASH=$(sha256sum dl/mt79xx_20231229-4012a0.tar.xz | cut -d ' ' -f 1)
-                sed -i "s|PKG_HASH:=.*|PKG_HASH:=$NEW_MTWIFI_HASH|" "$MTWIFI_MAKEFILE"
+                sed -i '/^PKG_HASH:=/d' "$MTWIFI_MAKEFILE"
+                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_MTWIFI_HASH" "$MTWIFI_MAKEFILE"
                 if ! grep -q "PKG_SOURCE_URL" "$MTWIFI_MAKEFILE"; then
-                    sed -i '/PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$MTWIFI_MAKEFILE"
+                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$MTWIFI_MAKEFILE"
                 fi
                 echo "mt_wifi Makefile 已修改"
             else
                 echo "❌ 未找到 mt_wifi Makefile"
             fi
 
-            # 修改 datconf Makefile
+            # 修改 datconf
             DATCONF_MAKEFILE=$(find ./package -type f -name "Makefile" -path "*datconf*" | head -n 1)
             if [ -n "$DATCONF_MAKEFILE" ]; then
                 echo "找到 datconf Makefile: $DATCONF_MAKEFILE"
                 sed -i 's|PKG_VERSION:=.*|PKG_VERSION:=757f9679|' "$DATCONF_MAKEFILE"
                 sed -i 's|PKG_SOURCE:=.*|PKG_SOURCE:=datconf-757f9679.tar.bz2|' "$DATCONF_MAKEFILE"
                 NEW_DATCONF_HASH=$(sha256sum dl/datconf-757f9679.tar.bz2 | cut -d ' ' -f 1)
-                sed -i "s|PKG_HASH:=.*|PKG_HASH:=$NEW_DATCONF_HASH|" "$DATCONF_MAKEFILE"
+                sed -i '/^PKG_HASH:=/d' "$DATCONF_MAKEFILE"
+                sed -i "/^PKG_SOURCE:=/a PKG_HASH:=$NEW_DATCONF_HASH" "$DATCONF_MAKEFILE"
                 if ! grep -q "PKG_SOURCE_URL" "$DATCONF_MAKEFILE"; then
-                    sed -i '/PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$DATCONF_MAKEFILE"
+                    sed -i '/^PKG_SOURCE:=/a PKG_SOURCE_URL:=file://$(TOPDIR)/dl' "$DATCONF_MAKEFILE"
                 fi
                 echo "datconf Makefile 已修改"
             else
                 echo "❌ 未找到 datconf Makefile"
             fi
 
-            # ========== 针对 conninfra 的特殊修复：直接解压覆盖本地 src 源码 ==========
+            # 覆盖 conninfra 本地源码
             echo "===== 修复 conninfra：强制解压配套源码覆盖本地源码 ====="
             CONNINFRA_DIR=$(find ./package -type d -path "*conninfra*" | head -n 1)
             if [ -n "$CONNINFRA_DIR" ]; then
                 echo "找到 conninfra 目录: $CONNINFRA_DIR"
-                # 解压 tarball 到临时目录
                 mkdir -p /tmp/conninfra_extract
                 tar -xf dl/mt79xx_conninfra_20231229-f2fa25.tar.xz -C /tmp/conninfra_extract --strip-components=1
-                # 用新源码覆盖本地 src 目录（如果 tarball 内包含 src 目录，直接覆盖；否则覆盖整个目录）
                 if [ -d "/tmp/conninfra_extract/src" ]; then
                     rm -rf "$CONNINFRA_DIR/src"
                     cp -rf /tmp/conninfra_extract/src "$CONNINFRA_DIR/"
                 else
-                    # 如果 tarball 解压出来是源码根目录，将其复制到 src 下
                     mkdir -p "$CONNINFRA_DIR/src"
                     cp -rf /tmp/conninfra_extract/* "$CONNINFRA_DIR/src/"
                 fi
@@ -242,11 +237,9 @@ jobs:
             else
                 echo "❌ 未找到 conninfra 目录"
             fi
-            # ==========================================================
           else
             echo "===== 非 237 源码，跳过 dl 补充 ====="
           fi
-          # ==========================================================
 
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
           if [ -f "$PROJECT_MIRRORS_FILE" ]; then
@@ -295,26 +288,20 @@ jobs:
         run: |
           cd ./wrt/
 
-          # ========== 1. 删除源码自带的 .config ==========
           rm -f .config
 
-          # ========== 2. 拼接我们的配置 ==========
           if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
           fi
 
-          # ========== 3. 导出 DEVICE 变量给 diy.sh ==========
           export DEVICE="${WRT_DEVICE:-}"
 
-          # ========== 4. 执行 Settings.sh ==========
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
-          # ========== 5. 用 defconfig 补全依赖（容忍递归依赖错误） ==========
           make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log || true
 
-          # ========== 6. defconfig 后强制写回目标机型 ==========
           if [ -n "$WRT_DEVICE" ]; then
             echo "===== 强制写回目标机型: $WRT_DEVICE ====="
 
@@ -390,17 +377,13 @@ jobs:
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
-          # 1. 导出配置文本（精简命名）
           cp -f ./.config ./upload/Config-"$WRT_NAME"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
 
-          # 2. 提取内核版本和插件列表
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 3. 移动固件和系统文件（排除 manifest，稍后单独处理）
           find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
 
-          # 4. 精准移动 manifest
           if [ -n "$WRT_DEVICE" ]; then
             echo "===== 只打包目标设备 [$WRT_DEVICE] 的 manifest ====="
             find ./bin/targets/ -type f -name "*${WRT_DEVICE}*.manifest" -exec mv -f {} ./upload/ \;

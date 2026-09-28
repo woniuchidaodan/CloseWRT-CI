@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (C) 2026 VIKINGYFY
 
+# 云编译公用核心
 name: WRT-核心
 
 on:
@@ -103,6 +104,7 @@ jobs:
           WRT_CACHE_TARGET="$WRT_TARGET-$WRT_SUBTARGET"
           WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_CACHE_TARGET"
 
+          # 计算精简版本号，例如从 openwrt-24.10-6.6 提取为 24.10.6
           BRANCH_CLEAN=${WRT_BRANCH#openwrt-}
           VER_PART=${BRANCH_CLEAN%%-*}
           KERNEL_PART=${BRANCH_CLEAN#*-}
@@ -138,80 +140,6 @@ jobs:
           if [ ! -d "defconfig" ]; then
             echo "defconfig directory not found, stopping workflow."
             exit 0
-          fi
-
-          if [[ "$WRT_SOURCE" == "padavanonly/immortalwrt-mt798x-6.6" ]]; then
-            echo "===== 237 源码，强制清理并补充配套 dl 包（20231229 版本） ====="
-            mkdir -p dl
-
-            find dl/ -type f \( -name "*warp*" -o -name "*mt79*" -o -name "*mt798*" -o -name "*datconf*" \) -delete 2>/dev/null || true
-
-            DL_BASE="https://github.com/padavanonly/immortalwrt-mt798x-6.6/raw/mt798x-mt799x-6.6-mtwifi/dl"
-
-            wget -O dl/mt79xx_conninfra_20231229-f2fa25.tar.xz "$DL_BASE/mt79xx_conninfra_20231229-f2fa25.tar.xz" || { echo "❌ conninfra 下载失败"; exit 1; }
-            wget -O dl/warp_20231229-5f71ec.tar.xz "$DL_BASE/warp_20231229-5f71ec.tar.xz" || { echo "❌ warp 下载失败"; exit 1; }
-            wget -O dl/datconf-757f9679.tar.bz2 "$DL_BASE/datconf-757f9679.tar.bz2" || { echo "❌ datconf 下载失败"; exit 1; }
-            wget -O dl/mt79xx_20231229-4012a0.tar.xz "$DL_BASE/mt79xx_20231229-4012a0.tar.xz" || { echo "❌ mt_wifi 主驱动下载失败"; exit 1; }
-
-            ls -lh dl/ | grep -E "conninfra|mt79xx|warp|datconf"
-
-            HASH_WARP=$(sha256sum dl/warp_20231229-5f71ec.tar.xz | cut -d ' ' -f 1)
-            HASH_MTWIFI=$(sha256sum dl/mt79xx_20231229-4012a0.tar.xz | cut -d ' ' -f 1)
-            HASH_DATCONF=$(sha256sum dl/datconf-757f9679.tar.bz2 | cut -d ' ' -f 1)
-
-            fix_makefile() {
-              local file=$1
-              local version=$2
-              local source=$3
-              local hash=$4
-              awk -v ver="$version" -v src="$source" -v h="$hash" '
-                /^PKG_VERSION:=/ { print "PKG_VERSION:=" ver; next }
-                /^PKG_SOURCE:=/ { next }
-                /^PKG_HASH:=/ { next }
-                /^PKG_SOURCE_URL:=/ { next }
-                /include \$\(INCLUDE_DIR\)\/package\.mk/ && !done {
-                  print "PKG_SOURCE:=" src
-                  print "PKG_HASH:=" h
-                  print "PKG_SOURCE_URL:=file://$(TOPDIR)/dl"
-                  done = 1
-                }
-                { print }
-              ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-            }
-
-            fix_makefile "./package/mtk/drivers/warp/Makefile" "20231229-5f71ec" "warp_20231229-5f71ec.tar.xz" "$HASH_WARP"
-            fix_makefile "./package/mtk/drivers/mt_wifi/Makefile" "20231229-4012a0" "mt79xx_20231229-4012a0.tar.xz" "$HASH_MTWIFI"
-            fix_makefile "./package/mtk/applications/datconf/Makefile" "757f9679" "datconf-757f9679.tar.bz2" "$HASH_DATCONF"
-
-            echo "===== 修复 conninfra 源码（追加覆盖 + 保留 Makefile） ====="
-            CONNINFRA_DIR="./package/mtk/drivers/conninfra"
-
-            cp "$CONNINFRA_DIR/src/Makefile" /tmp/conninfra_Makefile.bak
-
-            mkdir -p /tmp/conninfra_extract
-            tar -xf dl/mt79xx_conninfra_20231229-f2fa25.tar.xz -C /tmp/conninfra_extract --strip-components=1
-
-            cp -rf /tmp/conninfra_extract/* "$CONNINFRA_DIR/src/"
-
-            cp /tmp/conninfra_Makefile.bak "$CONNINFRA_DIR/src/Makefile"
-
-            rm -rf /tmp/conninfra_extract
-
-            echo "===== 全局修复 MTK 驱动 API（适配 6.6 内核） ====="
-            find ./package/mtk/drivers/ -type f \( -name "*.c" -o -name "*.h" \) \
-              -exec sed -i 's/struct timeval/struct __kernel_old_timeval/g' {} \; \
-              -exec sed -i 's/class_create(THIS_MODULE, /class_create(/g' {} \; \
-              -exec sed -i 's/ioremap_nocache/ioremap/g' {} \;
-
-            echo "===== conninfra 的 EXTRA_CFLAGS 加上 -Wno-error ====="
-            sed -i 's|^EXTRA_CFLAGS+=-DEEPROM_NAME=|EXTRA_CFLAGS+=-Wno-error -DEEPROM_NAME=|' "$CONNINFRA_DIR/Makefile"
-
-            echo "===== 检查修复结果 ====="
-            ls "$CONNINFRA_DIR/src/" | head -5
-            grep -n "ioremap" "$CONNINFRA_DIR/src/platform/consys_reg_mng.c" | head -3
-            grep -n "EXTRA_CFLAGS" "$CONNINFRA_DIR/Makefile"
-          else
-            echo "===== 非 237 源码，跳过 dl 补充 ====="
           fi
 
           PROJECT_MIRRORS_FILE="./scripts/projectsmirrors.json"
@@ -261,20 +189,26 @@ jobs:
         run: |
           cd ./wrt/
 
+          # ========== 1. 删除源码自带的 .config ==========
           rm -f .config
 
+          # ========== 2. 拼接我们的配置 ==========
           if [[ "${WRT_CONFIG,,}" == *"test"* ]]; then
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
           fi
 
+          # ========== 3. 导出 DEVICE 变量给 diy.sh ==========
           export DEVICE="${WRT_DEVICE:-}"
 
+          # ========== 4. 执行 Settings.sh ==========
           $GITHUB_WORKSPACE/Scripts/Settings.sh
 
+          # ========== 5. 用 defconfig 补全依赖（容忍递归依赖错误） ==========
           make defconfig -j$(nproc) 2>&1 | tee /tmp/defconfig.log || true
 
+          # ========== 6. defconfig 后强制写回目标机型 ==========
           if [ -n "$WRT_DEVICE" ]; then
             echo "===== 强制写回目标机型: $WRT_DEVICE ====="
 
@@ -290,6 +224,7 @@ jobs:
             echo "CONFIG_TARGET_MULTI_PROFILE=y" >> .config
             echo "CONFIG_TARGET_PER_DEVICE_ROOTFS=y" >> .config
 
+            echo "===== 当前生效的设备 ====="
             grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config
 
             if [ -z "$(grep "^CONFIG_TARGET_DEVICE_mediatek_filogic_DEVICE_" .config)" ]; then
@@ -349,21 +284,28 @@ jobs:
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
+          # 1. 导出配置文本（精简命名）
           cp -f ./.config ./upload/Config-"$WRT_NAME"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
 
+          # 2. 提取内核版本和插件列表
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
+          # 3. 所有核心文件平铺
           find ./bin/targets/ -type f \( -name "*sysupgrade.bin" -o -name "*factory.ubi" -o -name "*kernel.bin" -o -name "*.itb" -o -name "*.fip" -o -name "preloader.bin" -o -name "*.json" -o -name "*.sha256sums" -o -name "*-bl2.bin" \) -exec mv -f {} ./upload/ \;
 
+          # 4. 精准抓取 manifest（只抓目标机型，避免 abt_asr3000.manifest 混入）
           if [ -n "$WRT_DEVICE" ]; then
+            echo "===== 只打包目标设备 [$WRT_DEVICE] 的 manifest ====="
             find ./bin/targets/ -type f -name "*${WRT_DEVICE}*.manifest" -exec mv -f {} ./upload/ \;
           else
+            echo "===== 打包所有 manifest（全设备编译） ====="
             find ./bin/targets/ -type f -name "*.manifest" -exec mv -f {} ./upload/ \;
           fi
 
           make clean -j$(nproc)
 
+          echo "==== 最终 upload 目录内容 ===="
           ls -lh ./upload/
 
       - name: 发布固件

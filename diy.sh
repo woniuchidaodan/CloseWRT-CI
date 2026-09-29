@@ -39,10 +39,36 @@ vm.min_free_kbytes = 8192
 vm.swappiness = 80
 EOF
 
-# 在 diy.sh 末尾追加
+# ========== 伪装 vermagic 为官方开源版本 ==========
 echo "=== 伪装 vermagic 为官方开源版本 ==="
 mkdir -p package/base-files/files/lib/modules/6.6.133
 echo "a8b93917f464536104594f27d870028d" > package/base-files/files/lib/modules/6.6.133/vermagic
+echo "--- 验证 vermagic 文件 ---"
+ls -la package/base-files/files/lib/modules/6.6.133/vermagic
+cat package/base-files/files/lib/modules/6.6.133/vermagic
 
+# ========== 精简 MTK 默认包 ==========
+echo "=== 精简 MTK 默认包 ==="
+
+# 1) 从 Makefile 删除 USB + btrfs
+if [ -f "target/linux/mediatek/Makefile" ]; then
+  sed -i 's/kmod-usb2 //g; s/kmod-usb3 //g; s/kmod-usb-net-rndis //g; s/usbutils//g; s/kmod-fs-btrfs //g' \
+    target/linux/mediatek/Makefile
+  echo "--- Makefile 修改后 ---"
+  sed -n '14,23p' target/linux/mediatek/Makefile
+else
+  echo "⚠️ 未找到 target/linux/mediatek/Makefile"
+fi
+
+# 2) 从 target.mk 删除 safexcel（连带 eip197 自动消失）
+if [ -f "target/linux/mediatek/filogic/target.mk" ]; then
+  sed -i 's/kmod-crypto-hw-safexcel //g' \
+    target/linux/mediatek/filogic/target.mk
+  echo "--- target.mk 修改后 ---"
+  cat target/linux/mediatek/filogic/target.mk
+else
+  echo "⚠️ 未找到 target/linux/mediatek/filogic/target.mk"
+fi
+
+echo "=== MTK 默认包精简完成 ==="
 echo "✅ diy.sh 执行完成"
-

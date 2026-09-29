@@ -16,16 +16,7 @@ if [ -d "$PACKAGE_PATH/luci-theme-argon" ]; then
 	fi
 fi
 
-#修改aurora菜单式样
-if [ -d "$PACKAGE_PATH/luci-app-aurora-config" ]; then
-	echo " "
-	if find "$PACKAGE_PATH/luci-app-aurora-config/root/usr/share/aurora/" -type f -name '*.template' -exec \
-		sed -i "s/nav_type '.*'/nav_type 'dropdown'/g; s/struct_radius_base '.*'/struct_radius_base '0.125rem'/g" {} +; then
-		echo "theme-aurora has been fixed!"
-	else
-		echo "theme-aurora fix failed; continuing!"
-	fi
-fi
+
 
 #修改mini-diskmanager菜单位置
 if [ -d "$PACKAGE_PATH/luci-app-mini-diskmanager" ]; then

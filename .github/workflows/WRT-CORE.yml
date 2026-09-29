@@ -269,30 +269,29 @@ jobs:
           cat bin/targets/*/*/profiles.json 2>/dev/null | grep version_number || echo "profiles.json 未找到"
           echo "==== openwrt_release ===="
           cat package/base-files/files/etc/openwrt_release 2>/dev/null || echo "openwrt_release 未找到"
-          echo "==== 固件目录列表（根目录） ===="
+          echo "==== 固件目录根目录列表 ===="
           ls -lh bin/targets/mediatek/filogic/ 2>/dev/null || echo "固件目录未找到"
-          echo "==== Packages.manifest 位置 ===="
-          find bin/targets/mediatek/filogic/ -name "Packages.manifest" -exec ls -lh {} \; 2>/dev/null || echo "Packages.manifest 未找到"
+          echo "==== 查找 opkg status（用于兜底生成 manifest） ===="
+          find build_dir -type f -path "*root-mediatek/usr/lib/opkg/status" 2>/dev/null | head -5 || echo "opkg status 未找到"
 
       - name: 打包固件
         if: ${{ !inputs.WRT_TEST }}
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
-          # 1. 导出配置文本（精简命名）
+          # ========== 1. 导出配置文本 ==========
           cp -f ./.config ./upload/Config-"$WRT_NAME"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
 
-          # 2. 提取内核版本和插件列表
+          # ========== 2. 提取内核版本和插件列表 ==========
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
           echo "WRT_LIST=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^luci-(app|theme)[^ ]*' {} \; | tr '\n' ' ')" >> $GITHUB_ENV
 
-          # 3. 抓取固件目录根目录下的所有文件（不含子目录，避免 .ipk 混入）
+          # ========== 3. 抓取固件目录根目录所有文件 ==========
           echo "===== 抓取前，固件目录根目录内容 ====="
           ls -lh ./bin/targets/mediatek/filogic/
-
           find ./bin/targets/mediatek/filogic/ -maxdepth 1 -type f -exec cp -f {} ./upload/ \;
 
-          # 4. 单独抓取 Packages.manifest（它在 packages/ 子目录里）
+          # ========== 4. 抓取 Packages.manifest（在 packages/ 子目录里） ==========
           PKG_MANIFEST=$(find ./bin/targets/mediatek/filogic/ -type f -name "Packages.manifest" | head -n1)
           if [ -n "$PKG_MANIFEST" ]; then
             echo "找到 Packages.manifest: $PKG_MANIFEST"
@@ -301,22 +300,52 @@ jobs:
             echo "⚠️ Packages.manifest 未找到"
           fi
 
-          # 5. 剔除其他机型的设备专属 manifest（保留目标机型的）
-          if [ -n "$WRT_DEVICE" ]; then
-            for m in ./upload/*.manifest; do
-              [ -f "$m" ] || continue
-              fname=$(basename "$m")
-              if echo "$fname" | grep -qE "(^Packages\.manifest$)|(${WRT_DEVICE})"; then
-                echo "保留: $fname"
-              else
-                echo "剔除: $fname"
-                rm -f "$m"
-              fi
-            done
+          # ========== 5. 剔除无关机型/target 级 manifest ==========
+          # 237 源码只生成 immortalwrt-mediatek-filogic.manifest（target 级），
+          # 该文件对刷机用户意义不大，剔除避免混淆
+          rm -f ./upload/immortalwrt-mediatek-filogic.manifest
+          rm -f ./upload/immortalwrt-mediatek-*.manifest.bak
+
+          # ========== 6. ★★★ 从 opkg status 强制生成设备专属 manifest ★★★ ==========
+          TARGET_MANIFEST="./upload/immortalwrt-mediatek-filogic-${WRT_DEVICE}.manifest"
+          echo ""
+          echo "===== 强制生成设备专属 manifest ====="
+          echo "目标文件: $TARGET_MANIFEST"
+
+          STATUS_FILE=$(find ./build_dir -type f -path "*root-mediatek/usr/lib/opkg/status" 2>/dev/null | head -n1)
+          if [ -z "$STATUS_FILE" ]; then
+            # 兜底搜索：任何 root-* 目录下的 opkg status
+            STATUS_FILE=$(find ./build_dir -type f -path "*/usr/lib/opkg/status" 2>/dev/null | head -n1)
+          fi
+
+          if [ -n "$STATUS_FILE" ]; then
+            echo "✅ 找到 opkg status: $STATUS_FILE"
+            awk '
+              /^Package:/ { pkg=$2 }
+              /^Version:/ { ver=$2; if (pkg != "" && ver != "") print pkg" - "ver }
+            ' "$STATUS_FILE" | sort > "$TARGET_MANIFEST"
+            echo "✅ 已生成设备专属 manifest，共 $(wc -l < "$TARGET_MANIFEST") 个包"
+            echo "===== 前 10 行预览 ====="
+            head -10 "$TARGET_MANIFEST"
+          else
+            echo "⚠️ 找不到 opkg status 文件，列出 build_dir 中相关目录供排查："
+            find ./build_dir -type d -name "root-*" 2>/dev/null | head -10
+            echo "⚠️ 改用 Packages.manifest 兜底"
+            if [ -f "./upload/Packages.manifest" ]; then
+              cp -f ./upload/Packages.manifest "$TARGET_MANIFEST"
+              echo "✅ 已用 Packages.manifest 兜底生成"
+            fi
+          fi
+
+          # ========== 7. 校验 sha256sums（编译时通常已生成） ==========
+          if [ ! -f "./upload/sha256sums" ]; then
+            echo "===== sha256sums 未找到，重新生成 ====="
+            (cd ./upload/ && sha256sum *.bin *.ubi *.itb *.fip 2>/dev/null > sha256sums || true)
           fi
 
           make clean -j$(nproc)
 
+          echo ""
           echo "==== 最终 upload 目录内容 ===="
           ls -lh ./upload/
 
@@ -356,7 +385,7 @@ jobs:
             *   **主固件（系统内升级）**：`*-squashfs-sysupgrade.bin` 或 `*-squashfs-sysupgrade.itb`
             *   **过渡固件（Uboot/救砖）**：`*-initramfs-factory.ubi`、`*-initramfs-kernel.bin`、`*-initramfs-recovery.itb`
             *   **底层引导文件（按需刷写）**：`*-bl2.bin`、`preloader.bin`、`*-uboot.fip`、`*-bl31-uboot.fip`
-            *   **软件包清单**：`Packages.manifest`
+            *   **软件包清单**：`Packages.manifest`、`immortalwrt-*-${WRT_DEVICE}.manifest`
             *   **系统识别与校验文件（请勿修改文件名）**：`profiles.json`、`index.json`、`*.sha256sums`、`*.buildinfo`
 
             ## 📝 默认配置

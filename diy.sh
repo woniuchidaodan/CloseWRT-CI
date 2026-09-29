@@ -39,4 +39,10 @@ vm.min_free_kbytes = 8192
 vm.swappiness = 80
 EOF
 
+# 在 diy.sh 末尾追加
+echo "=== 伪装 vermagic 为官方开源版本 ==="
+mkdir -p package/base-files/files/lib/modules/6.6.133
+echo "a8b93917f464536104594f27d870028d" > package/base-files/files/lib/modules/6.6.133/vermagic
+
 echo "✅ diy.sh 执行完成"
+

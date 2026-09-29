@@ -110,6 +110,17 @@ jobs:
           KERNEL_MAJOR=${KERNEL_PART%%.*}
           WRT_SHORT_VERSION="${VER_PART}.${KERNEL_MAJOR}"
 
+          # 根据 WRT_DEVICE 自动推断简短设备名
+          if [[ "$WRT_DEVICE" == *"wr30u"* ]]; then
+            WRT_DEVICE_SHORT="WR30U"
+          elif [[ "$WRT_DEVICE" == *"ax3000t"* ]]; then
+            WRT_DEVICE_SHORT="AX3000T"
+          elif [ -n "$WRT_DEVICE" ]; then
+            WRT_DEVICE_SHORT="$WRT_DEVICE"
+          else
+            WRT_DEVICE_SHORT="$WRT_NAME"
+          fi
+
           {
             echo "WRT_INFO=${WRT_SOURCE%%/*}"
             echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")"
@@ -122,6 +133,7 @@ jobs:
             echo "WRT_KVER=none"
             echo "WRT_LIST=none"
             echo "WRT_SHORT_VERSION=$WRT_SHORT_VERSION"
+            echo "WRT_DEVICE_SHORT=$WRT_DEVICE_SHORT"
           } >> "$GITHUB_ENV"
           echo "cache_prefix=$WRT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
 
@@ -280,7 +292,7 @@ jobs:
           cd ./wrt/ && mkdir -p ./upload/
 
           # 1. 导出配置文本
-          cp -f ./.config ./upload/Config-"$WRT_NAME"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
+          cp -f ./.config ./upload/Config-"$WRT_DEVICE_SHORT"-"$WRT_CONFIG"-"$WRT_SHORT_VERSION".txt
 
           # 2. 提取内核版本和插件列表
           echo "WRT_KVER=$(find ./bin/targets/ -type f -name "*.manifest" -exec grep -oP '^kernel - \K[\d\.]+' {} \; | head -n1)" >> $GITHUB_ENV
@@ -333,8 +345,8 @@ jobs:
       - name: 发布固件
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_CONFIG }}-${{ env.WRT_SHORT_VERSION }}-${{ env.WRT_DATE }}
-          name: "ImmortalWrt-${{ env.WRT_NAME }}-${{ env.WRT_SHORT_VERSION }}-${{ env.WRT_DATE }}"
+          tag_name: ImmortalWrt-${{ env.WRT_DEVICE_SHORT }}-${{ env.WRT_CONFIG }}-${{ env.WRT_SHORT_VERSION }}-${{ env.WRT_DATE }}
+          name: "ImmortalWrt-${{ env.WRT_DEVICE_SHORT }}-${{ env.WRT_SHORT_VERSION }}-${{ env.WRT_DATE }}"
           files: |
             ./wrt/upload/*.bin
             ./wrt/upload/*.ubi
@@ -346,9 +358,10 @@ jobs:
             ./wrt/upload/*.buildinfo
             ./wrt/upload/Config-*.txt
           body: |
-            # ImmortalWrt | ${{ env.WRT_NAME }} (${{ env.WRT_CONFIG }}) - ${{ env.WRT_SHORT_VERSION }}
+            # ImmortalWrt | ${{ env.WRT_DEVICE_SHORT }} (${{ env.WRT_CONFIG }}) - ${{ env.WRT_SHORT_VERSION }}
 
             **编译时间**：${{ env.WRT_DATE }}
+            **目标设备**：${{ inputs.WRT_DEVICE }}
 
             ## 📋 固件信息
             | 项目 | 值 |
@@ -367,12 +380,6 @@ jobs:
             *   **过渡固件（Uboot/救砖）**：`*-initramfs-factory.ubi`、`*-initramfs-kernel.bin`
             *   **底层引导文件（按需刷写）**：`*-bl2.bin`、`preloader.bin`、`*-uboot.fip`
             *   **软件包清单**：`Packages.manifest`、`immortalwrt-*-${WRT_DEVICE}.manifest`
-
-            ## 📝 默认配置
-            - **IP 地址**: `${{ env.WRT_IP }}`
-            - **主机名**: `${{ env.WRT_NAME }}`
-            - **Wi-Fi SSID**: `${{ env.WRT_SSID }}`
-            - **Wi-Fi 密码**: `${{ env.WRT_WORD }}`
 
             ## ⚠️ 刷机提示
             > 刷机有风险，注意备份文件数据，请务必在早上或晚上刷机。

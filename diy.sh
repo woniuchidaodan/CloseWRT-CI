@@ -74,28 +74,36 @@ echo "a8b93917f464536104594f27d870028d" > "$WRT_ROOT/vermagic"
 echo "--- 已创建 $WRT_ROOT/vermagic ---"
 cat "$WRT_ROOT/vermagic"
 
-# 2. 修改 kernel-defaults.mk，在内核生成 .vermagic 之后覆盖它
+# 2. 修改 kernel-defaults.mk
 KDM="$WRT_ROOT/include/kernel-defaults.mk"
 if [ ! -f "$KDM" ]; then
   echo "❌ 未找到 $KDM"
+  exit 1
+fi
+
+if grep -q 'cp $(TOPDIR)/vermagic' "$KDM"; then
+  echo "⚠️ 已存在 cp 行，跳过"
 else
-  # 避免重复添加
-  if grep -q "cp \$(TOPDIR)/vermagic \$(LINUX_DIR)/.vermagic" "$KDM"; then
-    echo "⚠️ 已经存在 cp 行，跳过"
-  else
-    # 用 awk 精确匹配第 130 行，在它后面插入 cp 行
-    awk '
-      /grep .*\.config\.set.*mkhash md5.*\.vermagic/ {
-        print
-        print "\tcp $(TOPDIR)/vermagic $(LINUX_DIR)/.vermagic"
-        next
-      }
-      { print }
-    ' "$KDM" > "$KDM.tmp" && mv "$KDM.tmp" "$KDM"
-    echo "✅ kernel-defaults.mk 已修改"
-  fi
-  echo "--- 修改后 125-135 行 ---"
-  sed -n '125,135p' "$KDM"
+  TMPFILE=$(mktemp)
+  while IFS= read -r line; do
+    echo "$line" >> "$TMPFILE"
+    # 匹配大写 MKHASH
+    if echo "$line" | grep -q '\.config\.set.*MKHASH.*\.vermagic'; then
+      printf '\tcp $(TOPDIR)/vermagic $(LINUX_DIR)/.vermagic\n' >> "$TMPFILE"
+    fi
+  done < "$KDM"
+  mv "$TMPFILE" "$KDM"
+  echo "✅ kernel-defaults.mk 已修改"
+fi
+
+# 3. 强制校验
+echo "--- 修改后 128-134 行 ---"
+sed -n '128,134p' "$KDM"
+if grep -q 'cp $(TOPDIR)/vermagic' "$KDM"; then
+  echo "✅ cp 行已成功插入"
+else
+  echo "❌ cp 行插入失败！"
+  exit 1
 fi
 
 echo "=== vermagic 完美伪装完成 ==="

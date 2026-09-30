@@ -39,13 +39,6 @@ vm.min_free_kbytes = 8192
 vm.swappiness = 80
 EOF
 
-# ========== 伪装 vermagic 为官方开源版本 ==========
-echo "=== 伪装 vermagic 为官方开源版本 ==="
-mkdir -p package/base-files/files/lib/modules/6.6.133
-echo "a8b93917f464536104594f27d870028d" > package/base-files/files/lib/modules/6.6.133/vermagic
-echo "--- 验证 vermagic 文件 ---"
-ls -la package/base-files/files/lib/modules/6.6.133/vermagic
-cat package/base-files/files/lib/modules/6.6.133/vermagic
 
 # ========== 精简 MTK 默认包 ==========
 echo "=== 精简 MTK 默认包 ==="
@@ -69,6 +62,43 @@ if [ -f "target/linux/mediatek/filogic/target.mk" ]; then
 else
   echo "⚠️ 未找到 target/linux/mediatek/filogic/target.mk"
 fi
+
+# ========== 完美伪装 vermagic（改内核编译规则） ==========
+echo "=== 完美伪装 vermagic ==="
+
+WRT_ROOT="${GITHUB_WORKSPACE}/wrt"
+cd "$WRT_ROOT" || cd /mnt/build_wrt || exit 1
+
+# 1. 在源码根目录创建自定义 vermagic 文件
+echo "a8b93917f464536104594f27d870028d" > "$WRT_ROOT/vermagic"
+echo "--- 已创建 $WRT_ROOT/vermagic ---"
+cat "$WRT_ROOT/vermagic"
+
+# 2. 修改 kernel-defaults.mk，在内核生成 .vermagic 之后覆盖它
+KDM="$WRT_ROOT/include/kernel-defaults.mk"
+if [ ! -f "$KDM" ]; then
+  echo "❌ 未找到 $KDM"
+else
+  # 避免重复添加
+  if grep -q "cp \$(TOPDIR)/vermagic \$(LINUX_DIR)/.vermagic" "$KDM"; then
+    echo "⚠️ 已经存在 cp 行，跳过"
+  else
+    # 用 awk 精确匹配第 130 行，在它后面插入 cp 行
+    awk '
+      /grep .*\.config\.set.*mkhash md5.*\.vermagic/ {
+        print
+        print "\tcp $(TOPDIR)/vermagic $(LINUX_DIR)/.vermagic"
+        next
+      }
+      { print }
+    ' "$KDM" > "$KDM.tmp" && mv "$KDM.tmp" "$KDM"
+    echo "✅ kernel-defaults.mk 已修改"
+  fi
+  echo "--- 修改后 125-135 行 ---"
+  sed -n '125,135p' "$KDM"
+fi
+
+echo "=== vermagic 完美伪装完成 ==="
 
 echo "=== MTK 默认包精简完成 ==="
 echo "✅ diy.sh 执行完成"

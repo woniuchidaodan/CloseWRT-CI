@@ -64,7 +64,7 @@ jobs:
     with:
       WRT_CONFIG: ${{inputs.CONFIG}}
       WRT_DEVICE: ${{inputs.DEVICE}}
-      WRT_THEME: aurora
+      WRT_THEME: argon
       WRT_NAME: WR30U
       WRT_SSID: CMCC-7920
       WRT_WORD: 123456789

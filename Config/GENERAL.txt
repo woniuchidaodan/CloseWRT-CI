@@ -70,8 +70,8 @@ CONFIG_PACKAGE_kmod-mtd-rw=y
 CONFIG_PACKAGE_opkg=y
 
 # ========== 保留 2 个实用小插件 ==========
-CONFIG_PACKAGE_luci-app-partexp=y
-CONFIG_PACKAGE_luci-app-upnp=y
+# CONFIG_PACKAGE_luci-app-partexp is not set
+# CONFIG_PACKAGE_luci-app-upnp is not set
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n
 CONFIG_PACKAGE_luci-app-wol=n
 
@@ -359,7 +359,6 @@ CONFIG_WARP_DBG_SUPPORT=y
 CONFIG_WARP_MEMORY_LEAK_DBG=y
 CONFIG_WARP_VERSION=2
 CONFIG_WED_HW_RRO_SUPPORT=y
-
 
 # ========== 精简：删除不需要的用户态包 ==========
 # CONFIG_PACKAGE_bash is not set

@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# ========== 修复 default-settings 强制依赖 aurora 导致的编译失败 ==========
+echo "===== 修复主题依赖与 dnsmasq 冲突 ====="
+
+rm -rf package/feeds/luci/luci-theme-aurora
+rm -rf package/feeds/luci/luci-app-aurora-config
+rm -rf package/luci-theme-aurora
+rm -rf package/luci-app-aurora-config
+
+find . -path "*default-settings*" -name "Makefile" -exec sed -i 's/luci-theme-aurora/luci-theme-argon/g' {} +
+find . -path "*default-settings*" -name "Makefile" -exec sed -i 's/luci-app-aurora-config/luci-app-argon-config/g' {} +
+
+sed -i 's/CONFIG_PACKAGE_luci-theme-aurora=y/# CONFIG_PACKAGE_luci-theme-aurora is not set/g' .config
+sed -i 's/CONFIG_PACKAGE_luci-app-aurora-config=y/# CONFIG_PACKAGE_luci-app-aurora-config is not set/g' .config
+sed -i 's/CONFIG_PACKAGE_dnsmasq=y/# CONFIG_PACKAGE_dnsmasq is not set/g' .config
+sed -i 's/# CONFIG_PACKAGE_dnsmasq-full is not set/CONFIG_PACKAGE_dnsmasq-full=y/g' .config
+
+echo "✅ 依赖修复完成，只保留 Argon"
+
 # ========== 默认启用 Argon 主题 ==========
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon << 'EOT'
@@ -39,11 +57,9 @@ vm.min_free_kbytes = 8192
 vm.swappiness = 80
 EOF
 
-
 # ========== 精简 MTK 默认包 ==========
 echo "=== 精简 MTK 默认包 ==="
 
-# 1) 从 Makefile 删除 USB + btrfs
 if [ -f "target/linux/mediatek/Makefile" ]; then
   sed -i 's/kmod-usb2 //g; s/kmod-usb3 //g; s/kmod-usb-net-rndis //g; s/usbutils//g; s/kmod-fs-btrfs //g' \
     target/linux/mediatek/Makefile
@@ -53,7 +69,6 @@ else
   echo "⚠️ 未找到 target/linux/mediatek/Makefile"
 fi
 
-# 2) 从 target.mk 删除 safexcel（连带 eip197 自动消失）
 if [ -f "target/linux/mediatek/filogic/target.mk" ]; then
   sed -i 's/kmod-crypto-hw-safexcel //g' \
     target/linux/mediatek/filogic/target.mk
@@ -69,12 +84,10 @@ echo "=== 完美伪装 vermagic ==="
 WRT_ROOT="${GITHUB_WORKSPACE}/wrt"
 cd "$WRT_ROOT" || cd /mnt/build_wrt || exit 1
 
-# 1. 在源码根目录创建自定义 vermagic 文件
 echo "a8b93917f464536104594f27d870028d" > "$WRT_ROOT/vermagic"
 echo "--- 已创建 $WRT_ROOT/vermagic ---"
 cat "$WRT_ROOT/vermagic"
 
-# 2. 修改 kernel-defaults.mk
 KDM="$WRT_ROOT/include/kernel-defaults.mk"
 if [ ! -f "$KDM" ]; then
   echo "❌ 未找到 $KDM"
@@ -87,7 +100,6 @@ else
   TMPFILE=$(mktemp)
   while IFS= read -r line; do
     echo "$line" >> "$TMPFILE"
-    # 匹配大写 MKHASH
     if echo "$line" | grep -q '\.config\.set.*MKHASH.*\.vermagic'; then
       printf '\tcp $(TOPDIR)/vermagic $(LINUX_DIR)/.vermagic\n' >> "$TMPFILE"
     fi
@@ -96,7 +108,6 @@ else
   echo "✅ kernel-defaults.mk 已修改"
 fi
 
-# 3. 强制校验
 echo "--- 修改后 128-134 行 ---"
 sed -n '128,134p' "$KDM"
 if grep -q 'cp $(TOPDIR)/vermagic' "$KDM"; then
@@ -107,6 +118,5 @@ else
 fi
 
 echo "=== vermagic 完美伪装完成 ==="
-
 echo "=== MTK 默认包精简完成 ==="
 echo "✅ diy.sh 执行完成"

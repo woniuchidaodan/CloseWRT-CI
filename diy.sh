@@ -1,30 +1,37 @@
 #!/bin/bash
 
-# ========== 全局修复 Aurora 主题依赖 & 解决 dnsmasq 冲突 ==========
+# ========== 全局修复 Aurora 依赖 & 解决 dnsmasq 冲突 ==========
 echo "===== 修复主题依赖与 dnsmasq 冲突 ====="
 
-# 1. 清理可能残留的 Aurora 源码目录（防止编译时找不到源码报错）
+# 1. 清理可能残留的 Aurora 源码目录
 rm -rf package/feeds/luci/luci-theme-aurora
 rm -rf package/feeds/luci/luci-app-aurora-config
 rm -rf package/luci-theme-aurora
 rm -rf package/luci-app-aurora-config
 
-# 2. 全局修改所有 Makefile，把 aurora 依赖强制替换为 argon
-# 这一步至关重要，能解决 luci-light 和 luci-nginx 硬依赖 aurora 导致报错的问题
+# 2. 全局修改所有 Makefile，把 aurora 替换成 argon
 find ./ -name "Makefile" -type f -exec sed -i 's/luci-theme-aurora/luci-theme-argon/g' {} + 2>/dev/null
 find ./ -name "Makefile" -type f -exec sed -i 's/luci-app-aurora-config/luci-app-argon-config/g' {} + 2>/dev/null
 
-# 3. 强制修改 .config，确保彻底移除 aurora，并保留 argon
+# 3. 强制修改 .config，确保彻底移除 aurora
 sed -i 's/CONFIG_PACKAGE_luci-theme-aurora=y/# CONFIG_PACKAGE_luci-theme-aurora is not set/g' .config
 sed -i 's/CONFIG_PACKAGE_luci-app-aurora-config=y/# CONFIG_PACKAGE_luci-app-aurora-config is not set/g' .config
 sed -i 's/# CONFIG_PACKAGE_luci-theme-argon is not set/CONFIG_PACKAGE_luci-theme-argon=y/g' .config
 sed -i 's/# CONFIG_PACKAGE_luci-app-argon-config is not set/CONFIG_PACKAGE_luci-app-argon-config=y/g' .config
 
-# 4. 解决 dnsmasq 冲突（日志中 Error 255 的经典诱因）
+# 4. 解决 dnsmasq 冲突
 sed -i 's/CONFIG_PACKAGE_dnsmasq=y/# CONFIG_PACKAGE_dnsmasq is not set/g' .config
 sed -i 's/# CONFIG_PACKAGE_dnsmasq-full is not set/CONFIG_PACKAGE_dnsmasq-full=y/g' .config
 
-echo "✅ 主题依赖与 dnsmasq 冲突修复完成，只保留 Argon"
+echo "✅ 主题与 dnsmasq 冲突修复完成，只保留 Argon"
+
+# ========== 修复 kmod-oaf 循环依赖（仅改源码） ==========
+echo "===== 修复 kmod-oaf 循环依赖 ====="
+
+# 去除 kmod-oaf 源码里对自己的依赖（+kmod-oaf）
+find ./package ./feeds -path "*kmod-oaf*" -name "Makefile" -exec sed -i 's/+kmod-oaf//g' {} + 2>/dev/null
+
+echo "✅ kmod-oaf 源码依赖已修复"
 
 # ========== 默认启用 Argon 主题 ==========
 mkdir -p package/base-files/files/etc/uci-defaults
@@ -65,10 +72,10 @@ vm.min_free_kbytes = 8192
 vm.swappiness = 80
 EOF
 
-# ========== 精简 MTK 默认包 ==========
+# ========== 精简 MTK 默认包 & 彻底删除 USB/磁盘分区 ==========
 echo "=== 精简 MTK 默认包 ==="
 
-# 1) 从 Makefile 删除 USB + btrfs
+# 1) 从 target/linux/mediatek/Makefile 删除 USB 相关
 if [ -f "target/linux/mediatek/Makefile" ]; then
   sed -i 's/kmod-usb2 //g; s/kmod-usb3 //g; s/kmod-usb-net-rndis //g; s/usbutils//g; s/kmod-fs-btrfs //g' \
     target/linux/mediatek/Makefile
@@ -78,7 +85,7 @@ else
   echo "⚠️ 未找到 target/linux/mediatek/Makefile"
 fi
 
-# 2) 从 target.mk 删除 safexcel（连带 eip197 自动消失）
+# 2) 从 target.mk 删除 safexcel
 if [ -f "target/linux/mediatek/filogic/target.mk" ]; then
   sed -i 's/kmod-crypto-hw-safexcel //g' \
     target/linux/mediatek/filogic/target.mk
@@ -88,18 +95,32 @@ else
   echo "⚠️ 未找到 target/linux/mediatek/filogic/target.mk"
 fi
 
-# ========== 完美伪装 vermagic（改内核编译规则） ==========
+# 3) 从 mt7981.mk 中删除 USB/存储/磁盘分区默认包（关键步骤）
+if [ -f "target/linux/mediatek/image/mt7981.mk" ]; then
+  sed -i 's/kmod-usb-core //g; s/kmod-usb2 //g; s/kmod-usb-ohci //g; s/kmod-usb-storage //g; s/kmod-usb-storage-extras //g; s/kmod-usb-storage-uas //g; s/kmod-scsi-core //g; s/kmod-fs-ext4 //g; s/kmod-fs-vfat //g; s/kmod-fs-exfat //g; s/kmod-fs-ntfs3 //g; s/kmod-fs-btrfs //g; s/kmod-fs-autofs4 //g; s/kmod-nls-cp437 //g; s/kmod-nls-iso8859-1 //g; s/kmod-nls-utf8 //g; s/automount //g; s/ntfs3-mount //g; s/block-mount //g; s/blockd //g; s/blockdev //g; s/e2fsprogs //g; s/parted //g; s/lsblk //g; s/mount-utils //g; s/blkid //g; s/fdisk //g' \
+    target/linux/mediatek/image/mt7981.mk
+  echo "--- mt7981.mk 修改后 ---"
+  cat target/linux/mediatek/image/mt7981.mk
+else
+  echo "⚠️ 未找到 target/linux/mediatek/image/mt7981.mk"
+fi
+
+# 4) 全局搜索删除（覆盖所有可能存放默认包的文件）
+find target/linux/mediatek -name "Makefile" -o -name "*.mk" | while read f; do
+  sed -i 's/kmod-usb-core //g; s/kmod-usb-storage //g; s/kmod-scsi-core //g; s/kmod-fs-ext4 //g; s/kmod-fs-vfat //g; s/kmod-fs-exfat //g; s/kmod-fs-ntfs3 //g; s/kmod-fs-btrfs //g; s/automount //g; s/ntfs3-mount //g; s/parted //g; s/fdisk //g; s/e2fsprogs //g; s/lsblk //g; s/mount-utils //g; s/blkid //g; s/blockdev //g' "$f"
+done
+echo "✅ USB/磁盘分区包已从目标源码中彻底删除"
+
+# ========== 完美伪装 vermagic ==========
 echo "=== 完美伪装 vermagic ==="
 
 WRT_ROOT="${GITHUB_WORKSPACE}/wrt"
 cd "$WRT_ROOT" || cd /mnt/build_wrt || exit 1
 
-# 1. 在源码根目录创建自定义 vermagic 文件
 echo "a8b93917f464536104594f27d870028d" > "$WRT_ROOT/vermagic"
 echo "--- 已创建 $WRT_ROOT/vermagic ---"
 cat "$WRT_ROOT/vermagic"
 
-# 2. 修改 kernel-defaults.mk
 KDM="$WRT_ROOT/include/kernel-defaults.mk"
 if [ ! -f "$KDM" ]; then
   echo "❌ 未找到 $KDM"
@@ -112,7 +133,6 @@ else
   TMPFILE=$(mktemp)
   while IFS= read -r line; do
     echo "$line" >> "$TMPFILE"
-    # 匹配大写 MKHASH
     if echo "$line" | grep -q '\.config\.set.*MKHASH.*\.vermagic'; then
       printf '\tcp $(TOPDIR)/vermagic $(LINUX_DIR)/.vermagic\n' >> "$TMPFILE"
     fi
@@ -121,7 +141,6 @@ else
   echo "✅ kernel-defaults.mk 已修改"
 fi
 
-# 3. 强制校验
 echo "--- 修改后 128-134 行 ---"
 sed -n '128,134p' "$KDM"
 if grep -q 'cp $(TOPDIR)/vermagic' "$KDM"; then

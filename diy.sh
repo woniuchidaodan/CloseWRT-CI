@@ -33,6 +33,35 @@ find ./package ./feeds -path "*kmod-oaf*" -name "Makefile" -exec sed -i 's/+kmod
 
 echo "✅ kmod-oaf 源码依赖已修复"
 
+# ========== 切断 quickstart / luci-app-store 拉取磁盘包的依赖 ==========
+echo "===== 切断 quickstart / store 磁盘依赖 ====="
+
+# 1. quickstart：切除所有磁盘/RAID/SMART 依赖，保留核心运行时
+if [ -f "package/quickstart/Makefile" ]; then
+  sed -i 's/+mount-utils//g; s/+block-mount//g; s/+lsblk//g; s/+e2fsprogs//g; s/+parted//g' package/quickstart/Makefile
+  sed -i 's/+smartmontools-drivedb//g; s/+smartmontools//g; s/+smartd//g; s/+mdadm//g' package/quickstart/Makefile
+  echo "✅ package/quickstart/Makefile 已切除磁盘/RAID/SMART 依赖"
+  echo "---- 修改后的 DEPENDS ----"
+  grep -n "DEPENDS" package/quickstart/Makefile
+fi
+
+# 2. luci-app-store：切除 mount-utils
+if [ -f "package/luci-app-store/Makefile" ]; then
+  sed -i 's/+mount-utils//g' package/luci-app-store/Makefile
+  echo "✅ package/luci-app-store/Makefile 已切除 mount-utils"
+  echo "---- 修改后的 LUCI_DEPENDS ----"
+  grep -n "LUCI_DEPENDS" package/luci-app-store/Makefile
+fi
+
+# 3. 清理上次打补丁失败残留的 .rej / .orig 文件
+find package/quickstart package/luci-app-quickstart package/luci-app-store \
+     -name "*.rej" -delete 2>/dev/null
+find package/quickstart package/luci-app-quickstart package/luci-app-store \
+     -name "*.orig" -delete 2>/dev/null
+echo "✅ 清理 .rej / .orig 补丁残留文件完成"
+
+echo "===== quickstart / store 磁盘依赖切断完成 ====="
+
 # ========== 默认启用 Argon 主题 ==========
 mkdir -p package/base-files/files/etc/uci-defaults
 cat > package/base-files/files/etc/uci-defaults/99-set-argon << 'EOT'
